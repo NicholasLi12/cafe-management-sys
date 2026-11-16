@@ -1,0 +1,11 @@
+{
+  "name": "CafeOps Manager",
+  "short_name": "CafeOps",
+  "description": "Cafe operations and profit management application",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#f8fafc",
+  "theme_color": "#ea580c",
+  "orientation": "portrait-primary",
+  "icons": []
+}
