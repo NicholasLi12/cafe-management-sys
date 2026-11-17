@@ -12,9 +12,10 @@ A full-stack cafe operations and profit management platform built with Next.js, 
 ## Local setup
 1. Copy `.env.example` to `.env.local`
 2. Fill in your Supabase project values
-3. Run `npm install`
-4. Run `npm run dev`
-5. Visit `http://localhost:3000`
+3. Apply the SQL files in `supabase/migrations/` to your Supabase project in filename order
+4. Run `npm install`
+5. Run `npm run dev`
+6. Visit `http://localhost:3000`
 
 ## MVP scope
 - Authentication with owner profiles

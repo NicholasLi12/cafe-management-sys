@@ -1,16 +1,24 @@
-const formatCurrency = (value: number) =>
-  new Intl.NumberFormat('th-TH', {
-    style: 'currency',
-    currency: 'THB',
-    minimumFractionDigits: 2,
-  }).format(value);
+import { formatCurrencyTHB } from '@/lib/currency';
 
-export function SummaryCards() {
+type SummaryStats = {
+  grossRevenue: number;
+  platformFees: number;
+  ingredientCosts: number;
+  netProfit: number;
+};
+
+export function SummaryCards({ summary }: { summary?: SummaryStats }) {
+  const data = summary ?? {
+    grossRevenue: 8420,
+    platformFees: 980,
+    ingredientCosts: 2140,
+    netProfit: 5300,
+  };
   const stats = [
-    { label: 'Gross Revenue', value: formatCurrency(8420), tone: 'bg-emerald-50 text-emerald-700' },
-    { label: 'Platform Fees', value: formatCurrency(980), tone: 'bg-amber-50 text-amber-700' },
-    { label: 'Ingredient Costs', value: formatCurrency(2140), tone: 'bg-rose-50 text-rose-700' },
-    { label: 'Net Profit', value: formatCurrency(5300), tone: 'bg-brand-50 text-brand-700' },
+    { label: 'Gross Revenue', value: formatCurrencyTHB(data.grossRevenue), tone: 'bg-emerald-50 text-emerald-700' },
+    { label: 'Platform Fees', value: formatCurrencyTHB(data.platformFees), tone: 'bg-amber-50 text-amber-700' },
+    { label: 'Ingredient Costs', value: formatCurrencyTHB(data.ingredientCosts), tone: 'bg-rose-50 text-rose-700' },
+    { label: 'Net Profit', value: formatCurrencyTHB(data.netProfit), tone: 'bg-brand-50 text-brand-700' },
   ];
 
   return (

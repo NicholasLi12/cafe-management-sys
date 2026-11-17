@@ -1,42 +1,84 @@
 import { DashboardShell } from '@/components/dashboard-shell';
+import { MenuManager, type MenuItem, type MenuSupply, type RecipeIngredient } from '@/components/menu-manager';
+import { createSupabaseServerClient } from '@/lib/supabase/server';
 
-export default function MenuPage() {
+export default async function MenuPage() {
+  const supabase = await createSupabaseServerClient();
+  const { data: { user }, error: authError } = await supabase.auth.getUser();
+  if (authError) {
+    return <DashboardShell><p role="alert" className="rounded-xl bg-rose-50 p-4 text-rose-700">Could not verify your session: {authError.message}</p></DashboardShell>;
+  }
+
+  let menuItems: MenuItem[] = [];
+  let supplies: MenuSupply[] = [];
+  let cafeName: string | undefined;
+  let ownerName: string | null = null;
+  let role: 'admin' | 'barista' | null = null;
+  if (user) {
+    const { data: profile, error: profileError } = await supabase
+      .from('profiles')
+      .select('role, franchise_owner_id, cafe_name, owner_name')
+      .eq('id', user.id)
+      .single();
+    if (profileError) return <DashboardShell mode="live"><p role="alert" className="rounded-xl bg-rose-50 p-4 text-rose-700">Could not load your profile: {profileError.message}</p></DashboardShell>;
+    role = profile.role === 'barista' ? 'barista' : 'admin';
+    cafeName = profile.cafe_name;
+    ownerName = profile.owner_name;
+    const franchiseId = profile.franchise_owner_id ?? user.id;
+    const baseItemsResult = role === 'admin'
+      ? await supabase.from('menu_items').select('id, name, category, price, estimated_cost, is_available').eq('owner_id', franchiseId).order('name')
+      : await supabase.from('menu_items').select('id, name, category, price, is_available').eq('owner_id', franchiseId).order('name');
+    if (baseItemsResult.error) return <DashboardShell mode="live"><p role="alert" className="rounded-xl bg-rose-50 p-4 text-rose-700">Could not load menu data: {baseItemsResult.error.message}</p></DashboardShell>;
+
+    const baseItems = baseItemsResult.data ?? [];
+    if (role === 'admin') {
+      const { data: supplyRows, error: suppliesError } = await supabase
+        .from('supplies')
+        .select('id, item_name, unit, unit_cost')
+        .eq('owner_id', franchiseId)
+        .order('item_name');
+      if (suppliesError) return <DashboardShell mode="live"><p role="alert" className="rounded-xl bg-rose-50 p-4 text-rose-700">Could not load menu ingredients: {suppliesError.message}</p></DashboardShell>;
+      supplies = (supplyRows ?? []) as MenuSupply[];
+    }
+
+    if (baseItems.length && role === 'admin') {
+      const { data: recipeRows, error: recipeError } = await supabase
+        .from('menu_item_ingredients')
+        .select('menu_item_id, supply_id, quantity_required')
+        .in('menu_item_id', baseItems.map((item) => item.id));
+      if (recipeError) return <DashboardShell mode="live"><p role="alert" className="rounded-xl bg-rose-50 p-4 text-rose-700">Could not load menu recipes: {recipeError.message}</p></DashboardShell>;
+      const recipesByItem = new Map<string, RecipeIngredient[]>();
+      for (const recipe of recipeRows ?? []) {
+        const ingredients = recipesByItem.get(recipe.menu_item_id) ?? [];
+        ingredients.push({ supply_id: recipe.supply_id, quantity_required: Number(recipe.quantity_required) });
+        recipesByItem.set(recipe.menu_item_id, ingredients);
+      }
+      menuItems = baseItems.map((item) => ({
+        ...item,
+        price: Number(item.price),
+        estimated_cost: Number('estimated_cost' in item ? item.estimated_cost ?? 0 : 0),
+        is_available: Boolean(item.is_available),
+        ingredients: recipesByItem.get(item.id) ?? [],
+      }));
+    } else {
+      menuItems = baseItems.map((item) => ({
+        ...item,
+        price: Number(item.price),
+        estimated_cost: 0,
+        is_available: Boolean(item.is_available),
+        ingredients: [],
+      }));
+    }
+  }
+
   return (
-    <DashboardShell>
+    <DashboardShell mode={user ? 'live' : 'demo'} cafeName={cafeName} ownerName={ownerName} role={role}>
       <div className="space-y-6">
         <div>
           <p className="text-sm font-semibold uppercase tracking-[0.2em] text-brand-600">Menu</p>
           <h1 className="mt-2 text-3xl font-bold text-slate-900">Menu & Recipe Controls</h1>
         </div>
-
-        <div className="grid gap-6 lg:grid-cols-2">
-          <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-soft">
-            <h2 className="text-lg font-semibold">Popular Items</h2>
-            <div className="mt-4 space-y-3 text-sm text-slate-600">
-              <div className="flex items-center justify-between rounded-xl bg-slate-50 px-3 py-2">
-                <span>Espresso</span>
-                <span>฿45</span>
-              </div>
-              <div className="flex items-center justify-between rounded-xl bg-slate-50 px-3 py-2">
-                <span>Latte</span>
-                <span>฿75</span>
-              </div>
-              <div className="flex items-center justify-between rounded-xl bg-slate-50 px-3 py-2">
-                <span>Butter Croissant</span>
-                <span>฿60</span>
-              </div>
-            </div>
-          </section>
-
-          <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-soft">
-            <h2 className="text-lg font-semibold">Recipe Mapping</h2>
-            <ul className="mt-4 space-y-3 text-sm text-slate-600">
-              <li className="rounded-xl bg-amber-50 px-3 py-2 text-amber-800">Latte → 0.02kg beans + 0.25L milk</li>
-              <li className="rounded-xl bg-amber-50 px-3 py-2 text-amber-800">Espresso → 0.015kg beans</li>
-              <li className="rounded-xl bg-slate-100 px-3 py-2 text-slate-700">Croissant → butter + flour</li>
-            </ul>
-          </section>
-        </div>
+        <MenuManager menuItems={menuItems} supplies={supplies} demo={!user} isAdmin={!user || role === 'admin'} />
       </div>
     </DashboardShell>
   );

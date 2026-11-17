@@ -12,10 +12,10 @@ export default function HomePage() {
 
         <div className="mt-8 flex flex-col gap-3 sm:flex-row">
           <Link href="/login" className="inline-flex items-center justify-center rounded-xl bg-brand-600 px-5 py-3 font-medium text-white transition hover:bg-brand-700">
-            Go to Login
+            Sign In
           </Link>
-          <Link href="/dashboard" className="inline-flex items-center justify-center rounded-xl border border-slate-300 px-5 py-3 font-medium text-slate-700 transition hover:bg-slate-100">
-            View Dashboard
+          <Link href="/signup" className="inline-flex items-center justify-center rounded-xl border border-slate-300 px-5 py-3 font-medium text-slate-700 transition hover:bg-slate-100">
+            Create Account
           </Link>
         </div>
       </div>

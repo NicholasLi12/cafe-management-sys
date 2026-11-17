@@ -1,28 +1,52 @@
 import { DashboardShell } from '@/components/dashboard-shell';
+import { EmployeeManager, type Employee } from '@/components/employee-manager';
+import { createSupabaseServerClient } from '@/lib/supabase/server';
+import { redirect } from 'next/navigation';
 
-export default function EmployeesPage() {
+export default async function EmployeesPage() {
+  const supabase = await createSupabaseServerClient();
+  const { data: { user }, error: authError } = await supabase.auth.getUser();
+  if (authError) {
+    return <DashboardShell><p role="alert" className="rounded-xl bg-rose-50 p-4 text-rose-700">Could not verify your session: {authError.message}</p></DashboardShell>;
+  }
+
+  let cafeName: string | undefined;
+  let ownerName: string | null = null;
+  let franchiseId = user?.id;
+  let employees: Employee[] = [];
+  if (user) {
+    const { data: profile, error: profileError } = await supabase
+      .from('profiles')
+      .select('role, franchise_owner_id, cafe_name, owner_name')
+      .eq('id', user.id)
+      .single();
+    if (profileError) return <DashboardShell mode="live"><p role="alert" className="rounded-xl bg-rose-50 p-4 text-rose-700">Could not load your profile: {profileError.message}</p></DashboardShell>;
+    if (profile.role === 'barista') redirect('/dashboard/tables');
+    cafeName = profile.cafe_name;
+    ownerName = profile.owner_name;
+    franchiseId = profile.franchise_owner_id ?? user.id;
+    const { data, error } = await supabase.from('employees')
+      .select('id, full_name, role, email, user_id, hourly_rate, phone, is_active, hired_date, employment_type, hours_worked, salary_paid, last_paid_at')
+      .eq('franchise_owner_id', franchiseId)
+      .order('full_name');
+    if (error) return <DashboardShell mode="live"><p role="alert" className="rounded-xl bg-rose-50 p-4 text-rose-700">Could not load employees: {error.message}</p></DashboardShell>;
+    employees = (data ?? []).map((employee) => ({
+      ...employee,
+      hourly_rate: Number(employee.hourly_rate),
+      hours_worked: Number(employee.hours_worked),
+      is_active: Boolean(employee.is_active),
+      salary_paid: Boolean(employee.salary_paid),
+    })) as Employee[];
+  }
+
   return (
-    <DashboardShell>
+    <DashboardShell mode={user ? 'live' : 'demo'} cafeName={cafeName} ownerName={ownerName} role={user ? 'admin' : null}>
       <div className="space-y-6">
         <div>
           <p className="text-sm font-semibold uppercase tracking-[0.2em] text-brand-600">Team</p>
           <h1 className="mt-2 text-3xl font-bold text-slate-900">Employee Directory</h1>
         </div>
-
-        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-          {[
-            ['Nina', 'Manager', '฿450/day'],
-            ['Kim', 'Barista', '฿320/day'],
-            ['Aon', 'Cashier', '฿280/day'],
-          ].map(([name, role, wage]) => (
-            <div key={name} className="rounded-2xl border border-slate-200 bg-white p-5 shadow-soft">
-              <div className="flex h-12 w-12 items-center justify-center rounded-full bg-brand-100 font-semibold text-brand-700">{name[0]}</div>
-              <h2 className="mt-4 text-lg font-semibold text-slate-900">{name}</h2>
-              <p className="text-sm text-slate-600">{role}</p>
-              <p className="mt-3 text-sm font-medium text-brand-600">{wage}</p>
-            </div>
-          ))}
-        </div>
+        <EmployeeManager employees={employees} demo={!user} isAdmin={!!user} />
       </div>
     </DashboardShell>
   );
