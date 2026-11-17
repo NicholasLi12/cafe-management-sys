@@ -38,16 +38,7 @@ export default async function AnalyticsPage({
 }) {
   const { supabase, user, profile, authError, profileError } = await getDashboardContext();
   if (authError || !user) redirect('/login');
-  if (profileError || !profile) {
-    return (
-      <DashboardShell mode="live" role="admin">
-        <p role="alert" className="rounded-xl bg-rose-50 p-4 text-rose-700">
-          Could not load your profile{profileError ? `: ${profileError.message}` : '.'}
-        </p>
-      </DashboardShell>
-    );
-  }
-  if (profile.role !== 'admin') redirect('/dashboard/tables');
+  if (profileError || !profile || profile.role?.toLowerCase() !== 'admin') redirect('/dashboard/tables');
 
   const range: DateRange = searchParams?.range === '30d' || searchParams?.range === 'month'
     ? searchParams.range

@@ -16,7 +16,7 @@ type DashboardShellProps = {
   children: React.ReactNode;
   cafeName?: string;
   ownerName?: string | null;
-  role?: 'admin' | 'barista' | null;
+  role?: string | null;
   mode?: 'demo' | 'live';
 };
 
@@ -28,15 +28,16 @@ export function DashboardShell({
   mode = 'demo',
 }: DashboardShellProps) {
   const statusLabel = mode === 'live' ? 'Live data' : 'Demo mode';
-  const visibleNavItems: ReadonlyArray<{ href: (typeof navItems)[number]['href']; label: string }> = role === 'barista'
+  const normalizedRole = role?.toLowerCase();
+  const visibleNavItems: ReadonlyArray<{ href: (typeof navItems)[number]['href']; label: string }> = normalizedRole === 'barista'
     ? [
       ...navItems.filter((item) => item.href !== '/dashboard' && item.href !== '/dashboard/employees'),
       { href: '/dashboard/employees', label: 'My Shifts' },
     ]
-    : role === 'admin'
+    : normalizedRole === 'admin'
       ? navItems
       : navItems.filter((item) => item.href !== '/dashboard/analytics');
-  const roleLabel = role === 'barista' ? 'Barista' : role === 'admin' ? 'Admin' : null;
+  const roleLabel = normalizedRole === 'barista' ? 'Barista' : normalizedRole === 'admin' ? 'Admin' : null;
 
   return (
     <div className="min-h-screen bg-slate-100">
