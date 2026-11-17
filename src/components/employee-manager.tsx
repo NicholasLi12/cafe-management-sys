@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { createSupabaseClient } from '@/lib/supabase/client';
 import { getFranchiseContext } from '@/lib/supabase/franchise-client';
@@ -70,6 +70,10 @@ export function EmployeeManager({
   const [successMessage, setSuccessMessage] = useState('');
   const [hoursInputs, setHoursInputs] = useState<Record<string, string>>({});
 
+  useEffect(() => {
+    setRows(demo && !employees.length ? demoEmployees : employees);
+  }, [demo, employees]);
+
   const handleCreate = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     setErrorMessage('');
@@ -135,8 +139,8 @@ export function EmployeeManager({
 
   const saveHours = (employee: Employee) => {
     const hours = Number(hoursInputs[employee.id] ?? employee.hours_worked);
-    if (!Number.isFinite(hours) || hours < 0 || !Number.isInteger(hours * 2)) {
-      setErrorMessage('Hours worked must be a non-negative number in 0.5-hour increments.');
+    if (!Number.isFinite(hours) || hours < 0 || Math.round(hours * 100) !== hours * 100) {
+      setErrorMessage('Hours worked must be a non-negative number with at most two decimal places.');
       return;
     }
     void updateEmployee(employee, { hours_worked: hours });
@@ -400,7 +404,7 @@ export function EmployeeManager({
                           id={`hours-${employee.id}`}
                           type="number"
                           min="0"
-                          step="0.5"
+                          step="0.01"
                           value={hoursInputs[employee.id] ?? String(employee.hours_worked)}
                           onChange={(event) => setHoursInputs((current) => ({ ...current, [employee.id]: event.target.value }))}
                           disabled={demo || busyId === employee.id}
@@ -418,6 +422,7 @@ export function EmployeeManager({
                     <>
                       <p className="text-xs text-slate-500">Fixed Monthly</p>
                       <p className="font-medium">Monthly salary: ฿{employee.hourly_rate.toFixed(2)}</p>
+                      <p className="mt-1 text-xs text-slate-500">{employee.hours_worked.toFixed(2)} hrs logged this pay cycle</p>
                     </>
                   )}
                 </td>

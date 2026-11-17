@@ -27,8 +27,11 @@ export function DashboardShell({
   mode = 'demo',
 }: DashboardShellProps) {
   const statusLabel = mode === 'live' ? 'Live data' : 'Demo mode';
-  const visibleNavItems = role === 'barista'
-    ? navItems.filter((item) => item.href !== '/dashboard' && item.href !== '/dashboard/employees')
+  const visibleNavItems: ReadonlyArray<{ href: (typeof navItems)[number]['href']; label: string }> = role === 'barista'
+    ? [
+      ...navItems.filter((item) => item.href !== '/dashboard' && item.href !== '/dashboard/employees'),
+      { href: '/dashboard/employees', label: 'My Shifts' },
+    ]
     : navItems;
   const roleLabel = role === 'barista' ? 'Barista' : role === 'admin' ? 'Admin' : null;
 
