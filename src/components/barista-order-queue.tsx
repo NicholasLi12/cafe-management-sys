@@ -118,8 +118,15 @@ function statusStyle(status: PrepStatus) {
 
 function nextAction(status: PrepStatus) {
   if (status === 'new') return { next: 'preparing' as const, label: 'Start Preparing', style: 'bg-blue-700 hover:bg-blue-800' };
-  if (status === 'preparing') return { next: 'ready' as const, label: 'Mark Ready', style: 'bg-emerald-700 hover:bg-emerald-800' };
-  return { next: 'completed' as const, label: 'Picked Up / Complete', style: 'bg-slate-800 hover:bg-slate-900' };
+  if (status === 'preparing') return { next: 'ready' as const, label: 'Ready for Pickup', style: 'bg-emerald-700 hover:bg-emerald-800' };
+  return { next: 'completed' as const, label: 'Handed Off', style: 'bg-slate-800 hover:bg-slate-900' };
+}
+
+function statusLabel(status: PrepStatus) {
+  if (status === 'new') return 'New';
+  if (status === 'preparing') return 'In Progress';
+  if (status === 'ready') return 'Ready for Pickup';
+  return 'Completed';
 }
 
 function getOrderType(ticket: BaristaOrderTicket) {
@@ -214,9 +221,9 @@ export function BaristaOrderQueue({
     <div className="space-y-6">
       <header className="flex flex-col gap-4 rounded-2xl bg-slate-950 p-5 text-white shadow-soft sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <p className="text-sm font-semibold uppercase tracking-[0.2em] text-cyan-300">Kitchen Display</p>
+          <p className="text-sm font-semibold uppercase tracking-[0.2em] text-cyan-300">Espresso Bar</p>
           <h1 className="mt-1 text-3xl font-bold">Barista Order Queue</h1>
-          <p className="mt-1 text-sm text-slate-300">{tickets.length} active {tickets.length === 1 ? 'ticket' : 'tickets'}</p>
+          <p className="mt-1 text-sm text-slate-300">{tickets.length} active {tickets.length === 1 ? 'order' : 'orders'}</p>
         </div>
         <div className="flex items-center gap-3">
           <span className={`inline-flex items-center gap-2 rounded-full px-3 py-1.5 text-sm font-semibold ${connectionStatus === 'live' ? 'bg-emerald-300 text-emerald-950' : connectionStatus === 'offline' ? 'bg-rose-300 text-rose-950' : 'bg-amber-200 text-amber-950'}`}>
@@ -260,7 +267,7 @@ export function BaristaOrderQueue({
                 </div>
                 <div className="space-y-4 p-5">
                   <div className="flex items-center justify-between gap-2">
-                    <span className="rounded-full bg-slate-100 px-3 py-1 text-sm font-semibold uppercase text-slate-800">{ticket.prep_status}</span>
+                    <span className="rounded-full bg-slate-100 px-3 py-1 text-sm font-semibold text-slate-800">{statusLabel(ticket.prep_status)}</span>
                     <time className="text-sm text-slate-500" dateTime={ticket.created_at}>
                       {new Intl.DateTimeFormat('en-GB', { hour: '2-digit', minute: '2-digit' }).format(new Date(ticket.created_at))}
                     </time>
