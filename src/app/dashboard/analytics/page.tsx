@@ -1,6 +1,6 @@
 import { redirect } from 'next/navigation';
 import { DashboardShell } from '@/components/dashboard-shell';
-import { AnalyticsDashboard, type AnalyticsOrder } from '@/components/analytics-dashboard';
+import { AnalyticsDashboard, type AnalyticsBranch, type AnalyticsOrder } from '@/components/analytics-dashboard';
 import { getDashboardContext } from '@/lib/supabase/dashboard-context';
 
 type DateRange = '7d' | '30d' | 'month';
@@ -46,14 +46,18 @@ export default async function AnalyticsPage({
   const now = new Date();
   const start = getRangeStart(range, now);
   const tenantId = profile.franchise_owner_id ?? user.id;
-  const { data, error } = await supabase
-    .from('orders')
-    .select('id, total_amount, cogs_total, order_type, created_at, order_items(quantity, unit_price, modifiers, menu_items(name))')
-    .eq('owner_id', tenantId)
-    .eq('status', 'paid')
-    .gte('created_at', start.toISOString())
-    .lte('created_at', now.toISOString())
-    .order('created_at', { ascending: true });
+  const [ordersResult, membershipsResult] = await Promise.all([
+    supabase
+      .from('orders')
+      .select('id, total_amount, cogs_total, order_type, created_at, order_items(quantity, unit_price, modifiers, menu_items(name))')
+      .eq('owner_id', tenantId)
+      .eq('status', 'paid')
+      .gte('created_at', start.toISOString())
+      .lte('created_at', now.toISOString())
+      .order('created_at', { ascending: true }),
+    supabase.from('user_branch_memberships').select('branch_id').eq('user_id', user.id).eq('role', 'admin'),
+  ]);
+  const { data, error } = ordersResult;
 
   if (error) {
     return (
@@ -63,6 +67,46 @@ export default async function AnalyticsPage({
         </p>
       </DashboardShell>
     );
+  }
+  if (membershipsResult.error) {
+    return (
+      <DashboardShell mode="live" cafeName={profile.cafe_name} ownerName={profile.owner_name} role="admin">
+        <p role="alert" className="rounded-xl bg-rose-50 p-4 text-rose-700">
+          Could not load franchise memberships: {membershipsResult.error.message}
+        </p>
+      </DashboardShell>
+    );
+  }
+
+  let branchComparison: {
+    branch_id: string;
+    branch_name: string;
+    orders_count: number;
+    gross_sales: number;
+    cogs_total: number;
+    net_profit: number;
+  }[] = [];
+  if ((membershipsResult.data ?? []).length >= 2) {
+    const { data: comparisonData, error: comparisonError } = await supabase.rpc('get_franchise_branch_analytics', {
+      p_start: start.toISOString(),
+      p_end: now.toISOString(),
+    });
+    if (comparisonError) {
+      return (
+        <DashboardShell mode="live" cafeName={profile.cafe_name} ownerName={profile.owner_name} role="admin">
+          <p role="alert" className="rounded-xl bg-rose-50 p-4 text-rose-700">
+            Could not load branch comparison: {comparisonError.message}
+          </p>
+        </DashboardShell>
+      );
+    }
+    branchComparison = (comparisonData ?? []).map((branch: AnalyticsBranch) => ({
+      ...branch,
+      orders_count: Number(branch.orders_count),
+      gross_sales: Number(branch.gross_sales),
+      cogs_total: Number(branch.cogs_total),
+      net_profit: Number(branch.net_profit),
+    }));
   }
 
   const orders: AnalyticsOrder[] = (data ?? []).map((order) => ({
@@ -81,7 +125,7 @@ export default async function AnalyticsPage({
 
   return (
     <DashboardShell mode="live" cafeName={profile.cafe_name} ownerName={profile.owner_name} role="admin">
-      <AnalyticsDashboard orders={orders} range={range} />
+      <AnalyticsDashboard orders={orders} range={range} branchComparison={branchComparison} />
     </DashboardShell>
   );
 }

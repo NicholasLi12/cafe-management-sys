@@ -34,6 +34,15 @@ export type AnalyticsOrder = {
   order_items: OrderItem[];
 };
 
+export type AnalyticsBranch = {
+  branch_id: string;
+  branch_name: string;
+  orders_count: number;
+  gross_sales: number;
+  cogs_total: number;
+  net_profit: number;
+};
+
 const rangeOptions: { value: DateRange; label: string }[] = [
   { value: '7d', label: 'Last 7 Days' },
   { value: '30d', label: 'Last 30 Days' },
@@ -123,7 +132,15 @@ function ChartCard({ title, description, children, className = '' }: {
   );
 }
 
-export function AnalyticsDashboard({ orders, range }: { orders: AnalyticsOrder[]; range: DateRange }) {
+export function AnalyticsDashboard({
+  orders,
+  range,
+  branchComparison = [],
+}: {
+  orders: AnalyticsOrder[];
+  range: DateRange;
+  branchComparison?: AnalyticsBranch[];
+}) {
   const dailyRows = rangeDays(range).map((day) => ({ ...day, sales: 0, cogs: 0, profit: 0 }));
   const dailyByKey = new Map(dailyRows.map((day) => [day.key, day]));
   const hourlyRows = Array.from({ length: 16 }, (_, index) => ({ hour: index + 7, label: `${String(index + 7).padStart(2, '0')}:00`, orders: 0 }));
@@ -191,6 +208,39 @@ export function AnalyticsDashboard({ orders, range }: { orders: AnalyticsOrder[]
           ))}
         </nav>
       </header>
+
+      {branchComparison.length >= 2 && (
+        <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+          <div className="border-b border-slate-100 px-5 py-4">
+            <h2 className="font-semibold text-slate-900">Branch Performance Comparison</h2>
+            <p className="mt-1 text-sm text-slate-500">Admin branches · selected date range</p>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[720px] text-sm">
+              <thead className="bg-slate-50 text-left text-xs uppercase tracking-wide text-slate-500">
+                <tr>
+                  <th className="px-5 py-3">Branch</th>
+                  <th className="px-5 py-3 text-right">Orders</th>
+                  <th className="px-5 py-3 text-right">Gross Sales</th>
+                  <th className="px-5 py-3 text-right">Ingredient Cost / COGS</th>
+                  <th className="px-5 py-3 text-right">True Net Profit</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {branchComparison.map((branch) => (
+                  <tr key={branch.branch_id}>
+                    <td className="px-5 py-3 font-medium text-slate-900">{branch.branch_name}</td>
+                    <td className="px-5 py-3 text-right text-slate-700">{branch.orders_count}</td>
+                    <td className="px-5 py-3 text-right text-slate-700">{formatCurrencyTHB(branch.gross_sales)}</td>
+                    <td className="px-5 py-3 text-right text-slate-700">{formatCurrencyTHB(branch.cogs_total)}</td>
+                    <td className="px-5 py-3 text-right font-semibold text-emerald-700">{formatCurrencyTHB(branch.net_profit)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </section>
+      )}
 
       <section aria-label="Performance summary" className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
         <MetricCard label="Gross Sales" value={formatCurrencyTHB(grossSales)} detail={`${orders.length} paid orders`} tone="bg-orange-50 text-orange-900" />

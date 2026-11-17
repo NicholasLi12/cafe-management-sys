@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { BranchSwitcher } from '@/components/branch-switcher';
 import { SignOutButton } from '@/components/sign-out-button';
 
 const sharedNavItems = [
@@ -47,6 +48,7 @@ export function DashboardShell({
           <h2 className="mt-2 truncate text-xl font-bold">{cafeName}</h2>
           {ownerName && <p className="mt-1 truncate text-sm text-slate-400">{ownerName}</p>}
           {roleLabel && <span className="mt-3 inline-flex rounded-full bg-brand-900 px-2.5 py-1 text-xs font-semibold text-brand-100">{roleLabel}</span>}
+          {normalizedRole === 'admin' && <BranchSwitcher instanceId="desktop" />}
         </div>
 
         <nav className="space-y-2 px-3">
@@ -82,6 +84,7 @@ export function DashboardShell({
         </div>
         {ownerName && <p className="mt-1 truncate text-sm text-slate-500">{ownerName}</p>}
         {roleLabel && <span className="mt-2 inline-flex rounded-full bg-brand-50 px-2.5 py-1 text-xs font-semibold text-brand-700">{roleLabel}</span>}
+        {normalizedRole === 'admin' && <BranchSwitcher instanceId="mobile" />}
         <nav aria-label="Dashboard" className="mt-4 flex gap-2 overflow-x-auto pb-1">
           {visibleNavItems.map((item) => (
             <Link
