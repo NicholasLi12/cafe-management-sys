@@ -9,6 +9,7 @@ const navItems = [
   { href: '/dashboard/menu', label: 'Menu' },
   { href: '/dashboard/inventory', label: 'Inventory' },
   { href: '/dashboard/employees', label: 'Employees' },
+  { href: '/dashboard/analytics', label: 'Analytics' },
 ] as const;
 
 type DashboardShellProps = {
@@ -32,7 +33,9 @@ export function DashboardShell({
       ...navItems.filter((item) => item.href !== '/dashboard' && item.href !== '/dashboard/employees'),
       { href: '/dashboard/employees', label: 'My Shifts' },
     ]
-    : navItems;
+    : role === 'admin'
+      ? navItems
+      : navItems.filter((item) => item.href !== '/dashboard/analytics');
   const roleLabel = role === 'barista' ? 'Barista' : role === 'admin' ? 'Admin' : null;
 
   return (
