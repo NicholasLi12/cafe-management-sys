@@ -3,6 +3,8 @@
 import { Fragment, useMemo, useState } from 'react';
 import { APP_TIMEZONE, formatCurrencyTHB } from '@/lib/currency';
 
+export type OrderModifier = { group: string; option: string; upcharge: number };
+
 export type HistoryOrder = {
   id: string;
   order_type: string;
@@ -14,7 +16,14 @@ export type HistoryOrder = {
   notes: string | null;
   created_at: string;
   table: { table_number: string } | null;
-  items: { name: string; quantity: number; unit_price: number; subtotal: number }[];
+  items: {
+    name: string;
+    quantity: number;
+    unit_price: number;
+    subtotal: number;
+    modifiers: OrderModifier[];
+    notes: string | null;
+  }[];
 };
 
 type DateFilter = 'all' | 'today' | 'last7' | 'custom';
@@ -254,7 +263,19 @@ export function OrderHistory({ orders }: { orders: HistoryOrder[] }) {
                               <ul className="space-y-1">
                                 {order.items.map((item, index) => (
                                   <li key={`${order.id}-${index}`} className="flex justify-between gap-4 text-sm">
-                                    <span>{item.quantity}× {item.name} <span className="text-slate-500">({formatCurrencyTHB(item.unit_price)} each)</span></span>
+                                    <div>
+                                      <p>{item.quantity}× {item.name} <span className="text-slate-500">({formatCurrencyTHB(item.unit_price)} each)</span></p>
+                                      {item.modifiers.length > 0 && (
+                                        <div className="mt-1 flex flex-wrap gap-1">
+                                          {item.modifiers.map((modifier, modifierIndex) => (
+                                            <span key={`${modifier.group}-${modifier.option}-${modifierIndex}`} className="rounded-full bg-slate-200 px-2 py-0.5 text-xs text-slate-600">
+                                              {modifier.option}{modifier.upcharge > 0 ? ` +${formatCurrencyTHB(modifier.upcharge)}` : ''}
+                                            </span>
+                                          ))}
+                                        </div>
+                                      )}
+                                      {item.notes && <p className="mt-1 text-xs text-slate-500">Note: {item.notes}</p>}
+                                    </div>
                                     <span className="whitespace-nowrap">{formatCurrencyTHB(item.subtotal)}</span>
                                   </li>
                                 ))}

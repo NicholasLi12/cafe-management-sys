@@ -1,11 +1,10 @@
 import { DashboardShell } from '@/components/dashboard-shell';
 import { EmployeeManager, type Employee } from '@/components/employee-manager';
-import { createSupabaseServerClient } from '@/lib/supabase/server';
+import { getDashboardContext } from '@/lib/supabase/dashboard-context';
 import { redirect } from 'next/navigation';
 
 export default async function EmployeesPage() {
-  const supabase = await createSupabaseServerClient();
-  const { data: { user }, error: authError } = await supabase.auth.getUser();
+  const { supabase, user, profile, authError, profileError } = await getDashboardContext();
   if (authError) {
     return <DashboardShell><p role="alert" className="rounded-xl bg-rose-50 p-4 text-rose-700">Could not verify your session: {authError.message}</p></DashboardShell>;
   }
@@ -15,12 +14,8 @@ export default async function EmployeesPage() {
   let franchiseId = user?.id;
   let employees: Employee[] = [];
   if (user) {
-    const { data: profile, error: profileError } = await supabase
-      .from('profiles')
-      .select('role, franchise_owner_id, cafe_name, owner_name')
-      .eq('id', user.id)
-      .single();
     if (profileError) return <DashboardShell mode="live"><p role="alert" className="rounded-xl bg-rose-50 p-4 text-rose-700">Could not load your profile: {profileError.message}</p></DashboardShell>;
+    if (!profile) return <DashboardShell mode="live"><p role="alert" className="rounded-xl bg-rose-50 p-4 text-rose-700">No profile was found for this account.</p></DashboardShell>;
     if (profile.role === 'barista') redirect('/dashboard/tables');
     cafeName = profile.cafe_name;
     ownerName = profile.owner_name;

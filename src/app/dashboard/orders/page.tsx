@@ -1,23 +1,20 @@
 import { DashboardShell } from '@/components/dashboard-shell';
 import { OrderHistory, type HistoryOrder } from '@/components/order-history';
-import { createSupabaseServerClient } from '@/lib/supabase/server';
+import { getDashboardContext } from '@/lib/supabase/dashboard-context';
 import { redirect } from 'next/navigation';
 
 export default async function OrdersPage() {
-  const supabase = await createSupabaseServerClient();
-  const { data: { user }, error: authError } = await supabase.auth.getUser();
+  const { supabase, user, profile, authError, profileError } = await getDashboardContext();
   if (authError) {
     return <DashboardShell><p role="alert" className="rounded-xl bg-rose-50 p-4 text-rose-700">Could not verify your session: {authError.message}</p></DashboardShell>;
   }
   if (!user) redirect('/login');
 
-  const { data: profile, error: profileError } = await supabase
-    .from('profiles')
-    .select('role, franchise_owner_id, cafe_name, owner_name')
-    .eq('id', user.id)
-    .single();
   if (profileError) {
     return <DashboardShell mode="live"><p role="alert" className="rounded-xl bg-rose-50 p-4 text-rose-700">Could not load your profile: {profileError.message}</p></DashboardShell>;
+  }
+  if (!profile) {
+    return <DashboardShell mode="live"><p role="alert" className="rounded-xl bg-rose-50 p-4 text-rose-700">No profile was found for this account.</p></DashboardShell>;
   }
 
   const role = profile.role === 'barista' ? 'barista' : 'admin';
@@ -52,7 +49,7 @@ export default async function OrdersPage() {
   const tableIds = Array.from(new Set(orderRows.flatMap((order) => order.table_id ? [order.table_id] : [])));
   const [itemsResult, tablesResult] = await Promise.all([
     orderIds.length
-      ? supabase.from('order_items').select('order_id, menu_item_id, quantity, unit_price, subtotal').in('order_id', orderIds)
+      ? supabase.from('order_items').select('order_id, menu_item_id, quantity, unit_price, subtotal, modifiers, notes').in('order_id', orderIds)
       : Promise.resolve({ data: [], error: null }),
     tableIds.length
       ? supabase.from('cafe_tables').select('id, table_number').in('id', tableIds)
@@ -101,6 +98,8 @@ export default async function OrdersPage() {
       unit_price: Number(item.unit_price),
       subtotal: Number(item.subtotal),
       name: itemNames.get(item.menu_item_id) ?? 'Removed menu item',
+      modifiers: Array.isArray(item.modifiers) ? item.modifiers : [],
+      notes: item.notes,
     })),
   })) satisfies HistoryOrder[];
 

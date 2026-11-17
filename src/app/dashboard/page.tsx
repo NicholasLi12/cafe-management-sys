@@ -2,7 +2,7 @@ import Link from 'next/link';
 import { DashboardShell } from '@/components/dashboard-shell';
 import { SummaryCards } from '@/components/summary-cards';
 import { APP_TIMEZONE } from '@/lib/currency';
-import { createSupabaseServerClient } from '@/lib/supabase/server';
+import { getDashboardContext } from '@/lib/supabase/dashboard-context';
 import { redirect } from 'next/navigation';
 
 function getTodayRange() {
@@ -21,8 +21,7 @@ function getTodayRange() {
 }
 
 export default async function DashboardPage() {
-  const supabase = await createSupabaseServerClient();
-  const { data: { user }, error: authError } = await supabase.auth.getUser();
+  const { supabase, user, profile, authError, profileError } = await getDashboardContext();
 
   if (authError) {
     return (
@@ -50,12 +49,6 @@ export default async function DashboardPage() {
       </DashboardShell>
     );
   }
-
-  const { data: profile, error: profileError } = await supabase
-    .from('profiles')
-    .select('email, owner_name, cafe_name, role, franchise_owner_id')
-    .eq('id', user.id)
-    .maybeSingle();
 
   if (profileError) {
     return (

@@ -9,7 +9,6 @@ export function SignupForm() {
   const router = useRouter();
   const [form, setForm] = useState({ ownerName: '', cafeName: '', email: '', password: '' });
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [message, setMessage] = useState('');
   const [errorMessage, setErrorMessage] = useState('');
 
   const updateField = (field: keyof typeof form, value: string) => {
@@ -18,7 +17,6 @@ export function SignupForm() {
 
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    setMessage('');
     setErrorMessage('');
     setIsSubmitting(true);
 
@@ -27,41 +25,32 @@ export function SignupForm() {
       const email = form.email.trim();
       const ownerName = form.ownerName.trim();
       const cafeName = form.cafeName.trim();
-      const { data, error } = await supabase.auth.signUp({
-        email,
-        password: form.password,
-        options: {
-          data: { owner_name: ownerName, cafe_name: cafeName },
-        },
-      });
-      if (error) throw error;
-
-      if (!data.user) {
-        throw new Error('Account registration did not return a user.');
-      }
-
-      if (!data.session) {
-        setMessage('Your account was created. Check your email to confirm your address, then sign in.');
-        return;
-      }
-
-      const { error: profileError } = await supabase.from('profiles').upsert(
-        {
-          id: data.user.id,
-          email: data.user.email ?? email,
+      const response = await fetch('/api/signup', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email,
+          password: form.password,
           owner_name: ownerName,
           cafe_name: cafeName,
-          role: 'admin',
-          franchise_owner_id: data.user.id,
-        },
-        { onConflict: 'id' }
-      );
-      if (profileError) throw profileError;
+        }),
+      });
+      const result = await response.json() as { email?: string; error?: string };
+      if (!response.ok) throw new Error(result.error ?? 'Could not create your cafe account.');
+
+      const { error: signInError } = await supabase.auth.signInWithPassword({
+        email: result.email ?? email,
+        password: form.password,
+      });
+      if (signInError) {
+        throw new Error(`Account created, but automatic sign-in failed: ${signInError.message}`);
+      }
 
       router.replace('/dashboard');
       router.refresh();
     } catch (error) {
-      setErrorMessage(error instanceof Error ? error.message : 'Unable to create your account. Please try again.');
+      const message = error instanceof Error ? error.message.trim() : '';
+      setErrorMessage(message || 'Could not create your account. Please try again.');
     } finally {
       setIsSubmitting(false);
     }
@@ -136,12 +125,6 @@ export function SignupForm() {
           {errorMessage}
         </p>
       )}
-      {message && (
-        <p role="status" className="rounded-xl bg-emerald-50 px-3 py-2 text-sm text-emerald-700">
-          {message}
-        </p>
-      )}
-
       <button
         type="submit"
         disabled={isSubmitting}

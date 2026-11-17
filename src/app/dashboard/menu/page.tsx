@@ -1,10 +1,9 @@
 import { DashboardShell } from '@/components/dashboard-shell';
 import { MenuManager, type MenuItem, type MenuSupply, type RecipeIngredient } from '@/components/menu-manager';
-import { createSupabaseServerClient } from '@/lib/supabase/server';
+import { getDashboardContext } from '@/lib/supabase/dashboard-context';
 
 export default async function MenuPage() {
-  const supabase = await createSupabaseServerClient();
-  const { data: { user }, error: authError } = await supabase.auth.getUser();
+  const { supabase, user, profile, authError, profileError } = await getDashboardContext();
   if (authError) {
     return <DashboardShell><p role="alert" className="rounded-xl bg-rose-50 p-4 text-rose-700">Could not verify your session: {authError.message}</p></DashboardShell>;
   }
@@ -15,30 +14,26 @@ export default async function MenuPage() {
   let ownerName: string | null = null;
   let role: 'admin' | 'barista' | null = null;
   if (user) {
-    const { data: profile, error: profileError } = await supabase
-      .from('profiles')
-      .select('role, franchise_owner_id, cafe_name, owner_name')
-      .eq('id', user.id)
-      .single();
     if (profileError) return <DashboardShell mode="live"><p role="alert" className="rounded-xl bg-rose-50 p-4 text-rose-700">Could not load your profile: {profileError.message}</p></DashboardShell>;
+    if (!profile) return <DashboardShell mode="live"><p role="alert" className="rounded-xl bg-rose-50 p-4 text-rose-700">No profile was found for this account.</p></DashboardShell>;
     role = profile.role === 'barista' ? 'barista' : 'admin';
     cafeName = profile.cafe_name;
     ownerName = profile.owner_name;
     const franchiseId = profile.franchise_owner_id ?? user.id;
-    const baseItemsResult = role === 'admin'
-      ? await supabase.from('menu_items').select('id, name, category, price, estimated_cost, is_available').eq('owner_id', franchiseId).order('name')
-      : await supabase.from('menu_items').select('id, name, category, price, is_available').eq('owner_id', franchiseId).order('name');
+    const [baseItemsResult, supplyResult] = await Promise.all([
+      role === 'admin'
+        ? supabase.from('menu_items').select('id, name, category, price, estimated_cost, is_available').eq('owner_id', franchiseId).order('name')
+        : supabase.from('menu_items').select('id, name, category, price, is_available').eq('owner_id', franchiseId).order('name'),
+      role === 'admin'
+        ? supabase.from('supplies').select('id, item_name, unit, unit_cost').eq('owner_id', franchiseId).order('item_name')
+        : Promise.resolve({ data: null, error: null }),
+    ]);
     if (baseItemsResult.error) return <DashboardShell mode="live"><p role="alert" className="rounded-xl bg-rose-50 p-4 text-rose-700">Could not load menu data: {baseItemsResult.error.message}</p></DashboardShell>;
+    if (supplyResult.error) return <DashboardShell mode="live"><p role="alert" className="rounded-xl bg-rose-50 p-4 text-rose-700">Could not load menu ingredients: {supplyResult.error.message}</p></DashboardShell>;
 
     const baseItems = baseItemsResult.data ?? [];
     if (role === 'admin') {
-      const { data: supplyRows, error: suppliesError } = await supabase
-        .from('supplies')
-        .select('id, item_name, unit, unit_cost')
-        .eq('owner_id', franchiseId)
-        .order('item_name');
-      if (suppliesError) return <DashboardShell mode="live"><p role="alert" className="rounded-xl bg-rose-50 p-4 text-rose-700">Could not load menu ingredients: {suppliesError.message}</p></DashboardShell>;
-      supplies = (supplyRows ?? []) as MenuSupply[];
+      supplies = (supplyResult.data ?? []) as MenuSupply[];
     }
 
     if (baseItems.length && role === 'admin') {

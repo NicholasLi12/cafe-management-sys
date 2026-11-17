@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { createSupabaseClient } from '@/lib/supabase/client';
 import { getFranchiseContext } from '@/lib/supabase/franchise-client';
+import { formatCurrencyTHB } from '@/lib/currency';
 
 export type CafeTable = {
   id: string;
@@ -34,8 +35,56 @@ const statusStyles = {
   occupied: 'bg-amber-50 text-amber-700 border-amber-200',
   reserved: 'bg-violet-50 text-violet-700 border-violet-200',
 };
-type CartLine = { menu_item_id: string; quantity: number };
+type DrinkModifier = { group: string; option: string; upcharge: number };
+type CartLine = {
+  menu_item_id: string;
+  quantity: number;
+  unit_price: number;
+  modifiers: DrinkModifier[];
+  notes: string;
+};
 type OrderType = 'dine_in' | 'pickup' | 'online_delivery';
+type ModifierChoices = {
+  sweetness: string;
+  ice: string;
+  milk: string;
+  addOns: string[];
+  notes: string;
+};
+
+const defaultModifierChoices: ModifierChoices = {
+  sweetness: '100%',
+  ice: 'Normal',
+  milk: 'Regular',
+  addOns: [],
+  notes: '',
+};
+
+const milkUpcharges: Record<string, number> = { Regular: 0, 'Oat Milk': 15, 'Soy Milk': 10 };
+const addOnUpcharges: Record<string, number> = {
+  'Extra Espresso Shot': 20,
+  'Vanilla Syrup': 10,
+  'Caramel Drizzle': 10,
+};
+
+function isDrink(item: OrderMenuItem) {
+  return /coffee|tea|drink|beverage|juice|smoothie|latte|espresso/i.test(item.category);
+}
+
+function getModifiers(choices: ModifierChoices): DrinkModifier[] {
+  return [
+    { group: 'Sweetness', option: choices.sweetness, upcharge: 0 },
+    { group: 'Ice', option: choices.ice, upcharge: 0 },
+    { group: 'Milk', option: choices.milk, upcharge: milkUpcharges[choices.milk] ?? 0 },
+    ...Object.keys(addOnUpcharges)
+      .filter((addOn) => choices.addOns.includes(addOn))
+      .map((addOn) => ({ group: 'Add-on', option: addOn, upcharge: addOnUpcharges[addOn] })),
+  ];
+}
+
+function modifierSignature(line: Pick<CartLine, 'modifiers' | 'notes'>) {
+  return JSON.stringify(line.modifiers) + line.notes.trim();
+}
 
 function getErrorMessage(error: unknown) {
   if (typeof error === 'object' && error !== null && 'message' in error) {
@@ -61,12 +110,41 @@ export function TableFloor({
   const [tableRows, setTableRows] = useState(demo && !tables.length ? demoTables : tables);
   const orderMenu = demo && !menuItems.length ? demoMenu : menuItems;
   const [orderType, setOrderType] = useState<OrderType>('dine_in');
-  const [cart, setCart] = useState<CartLine[]>([{ menu_item_id: '', quantity: 1 }]);
+  const [cart, setCart] = useState<CartLine[]>([]);
+  const [customizingItem, setCustomizingItem] = useState<OrderMenuItem | null>(null);
+  const [modifierChoices, setModifierChoices] = useState<ModifierChoices>(defaultModifierChoices);
   const [isAddingTable, setIsAddingTable] = useState(false);
   const [isRecordingOrder, setIsRecordingOrder] = useState(false);
   const [busyTableId, setBusyTableId] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState('');
   const [successMessage, setSuccessMessage] = useState('');
+
+  const addToCart = (item: OrderMenuItem, modifiers: DrinkModifier[] = [], notes = '') => {
+    const unitPrice = item.price + modifiers.reduce((sum, modifier) => sum + modifier.upcharge, 0);
+    const signature = modifierSignature({ modifiers, notes });
+    setCart((current) => {
+      const existing = current.find((line) => line.menu_item_id === item.id && modifierSignature(line) === signature);
+      if (existing) {
+        return current.map((line) => line === existing ? { ...line, quantity: line.quantity + 1 } : line);
+      }
+      return [...current, { menu_item_id: item.id, quantity: 1, unit_price: unitPrice, modifiers, notes: notes.trim() }];
+    });
+  };
+
+  const selectMenuItem = (item: OrderMenuItem) => {
+    if (isDrink(item)) {
+      setModifierChoices(defaultModifierChoices);
+      setCustomizingItem(item);
+    } else {
+      addToCart(item);
+    }
+  };
+
+  const addCustomizedDrink = () => {
+    if (!customizingItem) return;
+    addToCart(customizingItem, getModifiers(modifierChoices), modifierChoices.notes);
+    setCustomizingItem(null);
+  };
 
   const getOwnerId = async () => {
     const context = await getFranchiseContext();
@@ -183,7 +261,9 @@ export function TableFloor({
         return {
           menu_item_id: item.menu_item_id,
           quantity: item.quantity,
-          unit_price: Number(menuItem.price),
+          unit_price: item.unit_price,
+          modifiers: item.modifiers,
+          notes: item.notes.trim() || null,
         };
       });
       const totalAmount = orderItems.reduce(
@@ -251,7 +331,7 @@ export function TableFloor({
         }
       }
 
-      setCart([{ menu_item_id: '', quantity: 1 }]);
+      setCart([]);
       setSuccessMessage(`Paid order recorded successfully (${order.id.slice(0, 8)}).${tableStatusWarning}`);
       router.refresh();
     } catch (error) {
@@ -261,13 +341,8 @@ export function TableFloor({
     }
   };
 
-  const updateCartLine = (index: number, patch: Partial<CartLine>) => {
-    setCart((current) => current.map((line, lineIndex) => lineIndex === index ? { ...line, ...patch } : line));
-  };
-
   const total = cart.reduce((sum, line) => {
-    const menuItem = orderMenu.find((item) => item.id === line.menu_item_id);
-    return sum + (menuItem?.price ?? 0) * line.quantity;
+    return sum + line.unit_price * line.quantity;
   }, 0);
 
   return (
@@ -332,30 +407,145 @@ export function TableFloor({
               <input name="notes" disabled={demo || isRecordingOrder} className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2" />
             </label>
           </div>
-          {cart.map((line, index) => (
-            <div key={index} className="flex flex-wrap items-end gap-3">
-              <label className="min-w-56 flex-1 text-sm text-slate-700">Menu item
-                <select required value={line.menu_item_id} onChange={(event) => updateCartLine(index, { menu_item_id: event.target.value })} disabled={demo || isRecordingOrder} className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2">
-                  <option value="">Select an item</option>
-                  {orderMenu.map((item) => <option key={item.id} value={item.id}>{item.name} · ฿{Number(item.price).toFixed(2)}</option>)}
-                </select>
-              </label>
-              <label className="text-sm text-slate-700">Quantity
-                <input type="number" min="1" step="1" required value={line.quantity} onChange={(event) => updateCartLine(index, { quantity: Number(event.target.value) })} disabled={demo || isRecordingOrder} className="mt-1 w-24 rounded-lg border border-slate-300 px-3 py-2" />
-              </label>
-              {cart.length > 1 && <button type="button" disabled={demo || isRecordingOrder} onClick={() => setCart((current) => current.filter((_, lineIndex) => lineIndex !== index))} className="rounded-lg border border-slate-300 px-3 py-2 text-slate-700">Remove</button>}
+          <div>
+            <h3 className="mb-2 text-sm font-medium text-slate-700">Tap an item to add it</h3>
+            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+              {orderMenu.map((item) => (
+                <div key={item.id} className="rounded-xl border border-slate-200 p-3">
+                  <p className="font-medium text-slate-900">{item.name}</p>
+                  <p className="text-sm text-slate-500">{item.category} · {formatCurrencyTHB(item.price)}</p>
+                  {isDrink(item) ? (
+                    <div className="mt-3 flex gap-2">
+                      <button type="button" disabled={demo || isRecordingOrder} onClick={() => selectMenuItem(item)} className="min-h-11 flex-1 rounded-lg bg-brand-600 px-3 py-2 text-sm font-medium text-white disabled:opacity-50">Customize</button>
+                      <button type="button" disabled={demo || isRecordingOrder} onClick={() => addToCart(item, getModifiers(defaultModifierChoices))} className="min-h-11 rounded-lg border border-slate-300 px-3 py-2 text-sm disabled:opacity-50">Quick Add Default</button>
+                    </div>
+                  ) : (
+                    <button type="button" disabled={demo || isRecordingOrder} onClick={() => selectMenuItem(item)} className="mt-3 min-h-11 w-full rounded-lg bg-brand-600 px-3 py-2 text-sm font-medium text-white disabled:opacity-50">Add to order</button>
+                  )}
+                </div>
+              ))}
             </div>
-          ))}
+          </div>
+
+          <div className="space-y-3">
+            <h3 className="text-sm font-medium text-slate-700">Order items</h3>
+            {cart.map((line, index) => {
+              const item = orderMenu.find((menuItem) => menuItem.id === line.menu_item_id);
+              return (
+                <div key={`${line.menu_item_id}-${modifierSignature(line)}-${index}`} className="flex flex-wrap items-start justify-between gap-3 rounded-xl border border-slate-200 p-3">
+                  <div className="min-w-0 flex-1">
+                    <p className="font-medium text-slate-900">{item?.name ?? 'Menu item'} · {formatCurrencyTHB(line.unit_price)} each</p>
+                    <div className="mt-1 flex flex-wrap gap-1">
+                      {line.modifiers.map((modifier, modifierIndex) => (
+                        <span key={`${modifier.group}-${modifier.option}-${modifierIndex}`} className="rounded-full bg-slate-100 px-2 py-0.5 text-xs text-slate-600">
+                          {modifier.option}{modifier.upcharge > 0 ? ` +${formatCurrencyTHB(modifier.upcharge)}` : ''}
+                        </span>
+                      ))}
+                    </div>
+                    {line.notes && <p className="mt-1 text-xs text-slate-500">Note: {line.notes}</p>}
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <button type="button" aria-label={`Decrease ${item?.name ?? 'item'} quantity`} disabled={demo || isRecordingOrder} onClick={() => setCart((current) => current.flatMap((cartLine, cartIndex) => {
+                      if (cartIndex !== index) return [cartLine];
+                      return cartLine.quantity > 1 ? [{ ...cartLine, quantity: cartLine.quantity - 1 }] : [];
+                    }))} className="min-h-10 min-w-10 rounded-lg border border-slate-300 text-lg disabled:opacity-50">−</button>
+                    <span className="min-w-6 text-center font-medium">{line.quantity}</span>
+                    <button type="button" aria-label={`Increase ${item?.name ?? 'item'} quantity`} disabled={demo || isRecordingOrder} onClick={() => setCart((current) => current.map((cartLine, cartIndex) => cartIndex === index ? { ...cartLine, quantity: cartLine.quantity + 1 } : cartLine))} className="min-h-10 min-w-10 rounded-lg border border-slate-300 text-lg disabled:opacity-50">+</button>
+                    <button type="button" aria-label={`Remove ${item?.name ?? 'item'}`} disabled={demo || isRecordingOrder} onClick={() => setCart((current) => current.filter((_, cartIndex) => cartIndex !== index))} className="min-h-10 rounded-lg border border-rose-200 px-3 text-sm text-rose-700 disabled:opacity-50">Remove</button>
+                  </div>
+                </div>
+              );
+            })}
+            {!cart.length && <p className="rounded-xl bg-slate-50 p-4 text-sm text-slate-500">Your order is empty.</p>}
+          </div>
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div className="flex gap-2">
-              <button type="button" disabled={demo || isRecordingOrder} onClick={() => setCart((current) => [...current, { menu_item_id: '', quantity: 1 }])} className="rounded-lg border border-slate-300 px-3 py-2 text-slate-700">Add item</button>
-              <span className="self-center text-sm font-semibold text-slate-800">Items total ฿{total.toFixed(2)}</span>
+              <span className="self-center text-sm font-semibold text-slate-800">Items total {formatCurrencyTHB(total)}</span>
             </div>
-            <button type="submit" disabled={demo || isRecordingOrder || !orderMenu.length} className="rounded-lg bg-brand-600 px-4 py-2 font-medium text-white hover:bg-brand-700 disabled:opacity-50">{isRecordingOrder ? 'Recording…' : 'Record paid order'}</button>
+            <button type="submit" disabled={demo || isRecordingOrder || !cart.length} className="rounded-lg bg-brand-600 px-4 py-2 font-medium text-white hover:bg-brand-700 disabled:opacity-50">{isRecordingOrder ? 'Recording…' : 'Record paid order'}</button>
           </div>
           {!orderMenu.length && <p className="text-sm text-slate-500">Add an available menu item before recording orders.</p>}
         </form>
       </section>
+
+      {customizingItem && (
+        <div className="fixed inset-0 z-50 flex items-end justify-center bg-slate-950/50 p-0 sm:items-center sm:p-4" role="presentation" onMouseDown={(event) => {
+          if (event.target === event.currentTarget) setCustomizingItem(null);
+        }}>
+          <section role="dialog" aria-modal="true" aria-labelledby="drink-modal-title" className="max-h-[92vh] w-full overflow-y-auto rounded-t-3xl bg-white p-5 shadow-2xl sm:max-w-xl sm:rounded-2xl sm:p-6">
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <p className="text-sm text-slate-500">Customize drink</p>
+                <h2 id="drink-modal-title" className="text-xl font-bold text-slate-900">{customizingItem.name}</h2>
+              </div>
+              <button type="button" onClick={() => setCustomizingItem(null)} className="min-h-11 min-w-11 rounded-full bg-slate-100 text-lg text-slate-700" aria-label="Close customization">×</button>
+            </div>
+
+            {([
+              ['Sweetness', ['0%', '25%', '50%', '75%', '100%'], 'sweetness'],
+              ['Ice level', ['Normal', 'Less Ice', 'No Ice', 'Hot'], 'ice'],
+              ['Milk option', ['Regular', 'Oat Milk', 'Soy Milk'], 'milk'],
+            ] as const).map(([label, options, key]) => (
+              <fieldset key={key} className="mt-5">
+                <legend className="mb-2 text-sm font-semibold text-slate-800">{label}</legend>
+                <div className="flex flex-wrap gap-2">
+                  {options.map((option) => {
+                    const selected = modifierChoices[key] === option;
+                    const upcharge = key === 'milk' ? milkUpcharges[option] ?? 0 : 0;
+                    return (
+                      <button
+                        key={option}
+                        type="button"
+                        aria-pressed={selected}
+                        onClick={() => setModifierChoices((current) => ({ ...current, [key]: option }))}
+                        className={`min-h-11 rounded-full border px-4 py-2 text-sm font-medium ${selected ? 'border-brand-600 bg-brand-600 text-white' : 'border-slate-300 bg-white text-slate-700'}`}
+                      >
+                        {option}{upcharge > 0 ? ` (+${formatCurrencyTHB(upcharge)})` : ''}
+                      </button>
+                    );
+                  })}
+                </div>
+              </fieldset>
+            ))}
+
+            <fieldset className="mt-5">
+              <legend className="mb-2 text-sm font-semibold text-slate-800">Add-ons</legend>
+              <div className="flex flex-wrap gap-2">
+                {Object.entries(addOnUpcharges).map(([addOn, upcharge]) => {
+                  const selected = modifierChoices.addOns.includes(addOn);
+                  return (
+                    <button
+                      key={addOn}
+                      type="button"
+                      aria-pressed={selected}
+                      onClick={() => setModifierChoices((current) => ({
+                        ...current,
+                        addOns: selected ? current.addOns.filter((value) => value !== addOn) : [...current.addOns, addOn],
+                      }))}
+                      className={`min-h-11 rounded-full border px-4 py-2 text-sm font-medium ${selected ? 'border-brand-600 bg-brand-600 text-white' : 'border-slate-300 bg-white text-slate-700'}`}
+                    >
+                      {addOn} (+{formatCurrencyTHB(upcharge)})
+                    </button>
+                  );
+                })}
+              </div>
+            </fieldset>
+
+            <label className="mt-5 block text-sm font-semibold text-slate-800">Notes (optional)
+              <input maxLength={120} value={modifierChoices.notes} onChange={(event) => setModifierChoices((current) => ({ ...current, notes: event.target.value }))} placeholder="Extra hot, separate ice…" className="mt-2 min-h-11 w-full rounded-lg border border-slate-300 px-3 py-2 font-normal" />
+            </label>
+
+            {(() => {
+              const unitPrice = customizingItem.price + getModifiers(modifierChoices).reduce((sum, modifier) => sum + modifier.upcharge, 0);
+              return (
+                <button type="button" onClick={addCustomizedDrink} className="mt-6 min-h-12 w-full rounded-xl bg-brand-600 px-4 py-3 font-semibold text-white hover:bg-brand-700">
+                  Add to Order · {formatCurrencyTHB(unitPrice)}
+                </button>
+              );
+            })()}
+          </section>
+        </div>
+      )}
 
       <section>
         <h2 className="mb-4 text-lg font-semibold text-slate-900">Table Status</h2>
