@@ -15,10 +15,10 @@ export function SummaryCards({ summary }: { summary?: SummaryStats }) {
     netProfit: 5300,
   };
   const stats = [
-    { label: 'Gross Revenue', value: formatCurrencyTHB(data.grossRevenue), tone: 'bg-emerald-50 text-emerald-700' },
+    { label: 'Gross Sales', value: formatCurrencyTHB(data.grossRevenue), tone: 'bg-emerald-50 text-emerald-700' },
     { label: 'Platform Fees', value: formatCurrencyTHB(data.platformFees), tone: 'bg-amber-50 text-amber-700' },
-    { label: 'Ingredient Costs', value: formatCurrencyTHB(data.ingredientCosts), tone: 'bg-rose-50 text-rose-700' },
-    { label: 'Net Profit', value: formatCurrencyTHB(data.netProfit), tone: 'bg-brand-50 text-brand-700' },
+    { label: 'Ingredient Cost (COGS)', value: formatCurrencyTHB(data.ingredientCosts), tone: 'bg-rose-50 text-rose-700' },
+    { label: 'True Net Profit', value: formatCurrencyTHB(data.netProfit), tone: 'bg-brand-50 text-brand-700' },
   ];
 
   return (

@@ -1,5 +1,5 @@
 import { DashboardShell } from '@/components/dashboard-shell';
-import { MenuManager, type MenuItem, type MenuSupply, type RecipeIngredient } from '@/components/menu-manager';
+import { MenuManager, type MenuItem, type MenuSupply, type ModifierSupplyRule, type RecipeIngredient } from '@/components/menu-manager';
 import { getDashboardContext } from '@/lib/supabase/dashboard-context';
 
 export default async function MenuPage() {
@@ -10,6 +10,7 @@ export default async function MenuPage() {
 
   let menuItems: MenuItem[] = [];
   let supplies: MenuSupply[] = [];
+  let modifierRules: ModifierSupplyRule[] = [];
   let cafeName: string | undefined;
   let ownerName: string | null = null;
   let role: 'admin' | 'barista' | null = null;
@@ -36,16 +37,34 @@ export default async function MenuPage() {
       supplies = (supplyResult.data ?? []) as MenuSupply[];
     }
 
-    if (baseItems.length && role === 'admin') {
-      const { data: recipeRows, error: recipeError } = await supabase
-        .from('menu_item_ingredients')
-        .select('menu_item_id, supply_id, quantity_required')
-        .in('menu_item_id', baseItems.map((item) => item.id));
-      if (recipeError) return <DashboardShell mode="live"><p role="alert" className="rounded-xl bg-rose-50 p-4 text-rose-700">Could not load menu recipes: {recipeError.message}</p></DashboardShell>;
+    if (role === 'admin') {
+      const recipeQuery = baseItems.length
+        ? supabase
+          .from('menu_item_recipes')
+          .select('menu_item_id, supply_id, quantity_used, slot_type')
+          .eq('tenant_id', franchiseId)
+          .in('menu_item_id', baseItems.map((item) => item.id))
+        : Promise.resolve({ data: [], error: null });
+      const [recipeResult, modifierRulesResult] = await Promise.all([
+        recipeQuery,
+        supabase.from('modifier_supply_rules')
+          .select('modifier_name, action_type, target_slot, supply_id, quantity_used')
+          .eq('tenant_id', franchiseId),
+      ]);
+      if (recipeResult.error) return <DashboardShell mode="live"><p role="alert" className="rounded-xl bg-rose-50 p-4 text-rose-700">Could not load menu recipes: {recipeResult.error.message}</p></DashboardShell>;
+      if (modifierRulesResult.error) return <DashboardShell mode="live"><p role="alert" className="rounded-xl bg-rose-50 p-4 text-rose-700">Could not load modifier stock rules: {modifierRulesResult.error.message}</p></DashboardShell>;
+      modifierRules = (modifierRulesResult.data ?? []).map((rule) => ({
+        ...rule,
+        quantity_used: rule.quantity_used === null ? null : Number(rule.quantity_used),
+      })) as ModifierSupplyRule[];
       const recipesByItem = new Map<string, RecipeIngredient[]>();
-      for (const recipe of recipeRows ?? []) {
+      for (const recipe of recipeResult.data ?? []) {
         const ingredients = recipesByItem.get(recipe.menu_item_id) ?? [];
-        ingredients.push({ supply_id: recipe.supply_id, quantity_required: Number(recipe.quantity_required) });
+        ingredients.push({
+          supply_id: recipe.supply_id,
+          quantity_required: Number(recipe.quantity_used),
+          slot_type: recipe.slot_type as RecipeIngredient['slot_type'],
+        });
         recipesByItem.set(recipe.menu_item_id, ingredients);
       }
       menuItems = baseItems.map((item) => ({
@@ -73,7 +92,7 @@ export default async function MenuPage() {
           <p className="text-sm font-semibold uppercase tracking-[0.2em] text-brand-600">Menu</p>
           <h1 className="mt-2 text-3xl font-bold text-slate-900">Menu & Recipe Controls</h1>
         </div>
-        <MenuManager menuItems={menuItems} supplies={supplies} demo={!user} isAdmin={!user || role === 'admin'} />
+        <MenuManager menuItems={menuItems} supplies={supplies} modifierRules={modifierRules} demo={!user} isAdmin={!user || role === 'admin'} />
       </div>
     </DashboardShell>
   );

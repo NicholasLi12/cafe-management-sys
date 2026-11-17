@@ -66,7 +66,7 @@ export default async function DashboardPage() {
   const [ordersResult, suppliesResult, tablesResult] = await Promise.all([
     supabase
       .from('orders')
-      .select('id, total_amount, platform_fee')
+      .select('id, total_amount, platform_fee, cogs_total')
       .eq('owner_id', franchiseId)
       .eq('status', 'paid')
       .gte('created_at', start)
@@ -96,51 +96,9 @@ export default async function DashboardPage() {
   const orders = ordersResult.data ?? [];
   const supplies = suppliesResult.data ?? [];
   const tables = tablesResult.data ?? [];
-  const orderItemsResult = orders.length
-    ? await supabase
-        .from('order_items')
-        .select('quantity, menu_item_id')
-        .in('order_id', orders.map((order) => order.id))
-    : null;
-
-  if (orderItemsResult?.error) {
-    return (
-      <DashboardShell mode="live">
-        <p role="alert" className="rounded-2xl border border-rose-200 bg-rose-50 p-5 text-rose-800">
-          Could not load your order costs: {orderItemsResult.error.message}
-        </p>
-      </DashboardShell>
-    );
-  }
-
-  const orderItems = orderItemsResult?.data ?? [];
-  const menuItemIds = Array.from(new Set(orderItems.map((item) => item.menu_item_id)));
-  const menuItemsResult = menuItemIds.length
-    ? await supabase
-        .from('menu_items')
-        .select('id, estimated_cost')
-        .in('id', menuItemIds)
-    : null;
-
-  if (menuItemsResult?.error) {
-    return (
-      <DashboardShell mode="live">
-        <p role="alert" className="rounded-2xl border border-rose-200 bg-rose-50 p-5 text-rose-800">
-          Could not load menu costs: {menuItemsResult.error.message}
-        </p>
-      </DashboardShell>
-    );
-  }
-
   const grossRevenue = orders.reduce((total, order) => total + Number(order.total_amount ?? 0), 0);
   const platformFees = orders.reduce((total, order) => total + Number(order.platform_fee ?? 0), 0);
-  const menuItemCosts = new Map(
-    (menuItemsResult?.data ?? []).map((item) => [item.id, Number(item.estimated_cost ?? 0)])
-  );
-  const ingredientCosts = orderItems.reduce(
-    (total, item) => total + Number(item.quantity ?? 0) * (menuItemCosts.get(item.menu_item_id) ?? 0),
-    0
-  );
+  const ingredientCosts = orders.reduce((total, order) => total + Number(order.cogs_total ?? 0), 0);
   const lowStockSupplies = supplies.filter(
     (supply) => Number(supply.current_stock) <= Number(supply.low_stock_threshold)
   );
@@ -173,7 +131,7 @@ export default async function DashboardPage() {
             grossRevenue,
             platformFees,
             ingredientCosts,
-            netProfit: grossRevenue - platformFees - ingredientCosts,
+            netProfit: grossRevenue - ingredientCosts,
           }}
         />
 

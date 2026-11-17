@@ -266,10 +266,6 @@ export function TableFloor({
           notes: item.notes.trim() || null,
         };
       });
-      const totalAmount = orderItems.reduce(
-        (total, item) => total + item.quantity * item.unit_price,
-        0
-      );
       const notes = String(formData.get('notes') ?? '').trim() || null;
       const platformName = orderType === 'online_delivery'
         ? String(formData.get('platform_name') ?? '').trim()
@@ -278,61 +274,26 @@ export function TableFloor({
         throw new Error('Delivery platform name is required.');
       }
 
-      const { data: order, error: orderError } = await supabase
-        .from('orders')
-        .insert({
-          owner_id: ownerId,
-          table_id: tableId,
-          order_type: orderType,
-          payment_method: String(formData.get('payment_method')),
-          notes,
-          platform_name: platformName,
-          external_order_ref: orderType === 'online_delivery'
-            ? String(formData.get('external_order_ref') ?? '').trim() || null
-            : null,
-          platform_fee: orderType === 'online_delivery' ? platformFee : 0,
-          status: 'paid',
-          total_amount: totalAmount,
-          closed_at: new Date().toISOString(),
-        })
-        .select('id')
-        .single();
+      const { data: orderId, error: orderError } = await supabase.rpc('create_paid_order_atomic', {
+        p_table_id: tableId,
+        p_order_type: orderType,
+        p_payment_method: String(formData.get('payment_method')),
+        p_notes: notes,
+        p_platform_name: platformName,
+        p_external_order_ref: orderType === 'online_delivery'
+          ? String(formData.get('external_order_ref') ?? '').trim() || null
+          : null,
+        p_platform_fee: orderType === 'online_delivery' ? platformFee : 0,
+        p_items: orderItems,
+      });
       if (orderError) throw orderError;
-      if (!order) throw new Error('Order was not created.');
-
-      const { error: orderItemsError } = await supabase
-        .from('order_items')
-        .insert(orderItems.map((item) => ({ ...item, order_id: order.id })));
-      if (orderItemsError) {
-        const { error: cleanupError } = await supabase
-          .from('orders')
-          .delete()
-          .eq('id', order.id)
-          .eq('owner_id', ownerId);
-        if (cleanupError) {
-          throw new Error(
-            `Could not save order items: ${orderItemsError.message}. The incomplete order could not be removed: ${cleanupError.message}`
-          );
-        }
-        throw orderItemsError;
-      }
-
-      let tableStatusWarning = '';
+      if (!orderId) throw new Error('Order was not created.');
       if (tableId) {
-        const { error: updateTableError } = await supabase
-          .from('cafe_tables')
-          .update({ status: 'occupied' })
-          .eq('id', tableId)
-          .eq('owner_id', ownerId);
-        if (updateTableError) {
-          tableStatusWarning = ` Table status could not be updated: ${updateTableError.message}`;
-        } else {
-          setTableRows((current) => current.map((table) => table.id === tableId ? { ...table, status: 'occupied' } : table));
-        }
+        setTableRows((current) => current.map((table) => table.id === tableId ? { ...table, status: 'occupied' } : table));
       }
 
       setCart([]);
-      setSuccessMessage(`Paid order recorded successfully (${order.id.slice(0, 8)}).${tableStatusWarning}`);
+      setSuccessMessage(`Paid order recorded successfully (${orderId.slice(0, 8)}).`);
       router.refresh();
     } catch (error) {
       setErrorMessage(`Could not record paid order: ${getErrorMessage(error)}`);
