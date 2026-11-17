@@ -27,17 +27,18 @@ export default async function MenuPage() {
         : supabase.from('menu_items').select('id, name, category, price, is_available, has_sizes, size_prices').eq('owner_id', franchiseId).order('name'),
       role === 'admin'
         ? supabase.from('supplies').select('id, item_name, unit, unit_cost').eq('owner_id', franchiseId).order('item_name')
-        : Promise.resolve({ data: null, error: null }),
+        : supabase.from('supplies').select('id, item_name, unit').eq('owner_id', franchiseId).order('item_name'),
     ]);
     if (baseItemsResult.error) return <DashboardShell mode="live"><p role="alert" className="rounded-xl bg-rose-50 p-4 text-rose-700">Could not load menu data: {baseItemsResult.error.message}</p></DashboardShell>;
     if (supplyResult.error) return <DashboardShell mode="live"><p role="alert" className="rounded-xl bg-rose-50 p-4 text-rose-700">Could not load menu ingredients: {supplyResult.error.message}</p></DashboardShell>;
 
     const baseItems = baseItemsResult.data ?? [];
-    if (role === 'admin') {
-      supplies = (supplyResult.data ?? []) as MenuSupply[];
-    }
+    supplies = (supplyResult.data ?? []).map((supply) => ({
+      ...supply,
+      unit_cost: Number('unit_cost' in supply ? supply.unit_cost ?? 0 : 0),
+    })) as MenuSupply[];
 
-    if (role === 'admin') {
+    {
       const recipeQuery = baseItems.length
         ? supabase
           .from('menu_item_recipes')
@@ -48,13 +49,16 @@ export default async function MenuPage() {
       const [recipeResult, modifierRulesResult] = await Promise.all([
         recipeQuery,
         supabase.from('modifier_supply_rules')
-          .select('modifier_name, action_type, target_slot, supply_id, quantity_used')
+          .select('id, modifier_name, group_type, action_type, target_slot, supply_id, quantity_used, price_delta, is_active, sort_order')
           .eq('tenant_id', franchiseId),
       ]);
       if (recipeResult.error) return <DashboardShell mode="live"><p role="alert" className="rounded-xl bg-rose-50 p-4 text-rose-700">Could not load menu recipes: {recipeResult.error.message}</p></DashboardShell>;
       if (modifierRulesResult.error) return <DashboardShell mode="live"><p role="alert" className="rounded-xl bg-rose-50 p-4 text-rose-700">Could not load modifier stock rules: {modifierRulesResult.error.message}</p></DashboardShell>;
       modifierRules = (modifierRulesResult.data ?? []).map((rule) => ({
         ...rule,
+        supply_name: supplies.find((supply) => supply.id === rule.supply_id)?.item_name ?? null,
+        supply_unit: supplies.find((supply) => supply.id === rule.supply_id)?.unit ?? null,
+        price_delta: Number(rule.price_delta),
         quantity_used: rule.quantity_used === null ? null : Number(rule.quantity_used),
       })) as ModifierSupplyRule[];
       const recipesByItem = new Map<string, RecipeIngredient[]>();
@@ -75,16 +79,6 @@ export default async function MenuPage() {
         has_sizes: item.has_sizes,
         size_prices: item.size_prices,
         ingredients: recipesByItem.get(item.id) ?? [],
-      }));
-    } else {
-      menuItems = baseItems.map((item) => ({
-        ...item,
-        price: Number(item.price),
-        estimated_cost: 0,
-        is_available: Boolean(item.is_available),
-        has_sizes: item.has_sizes,
-        size_prices: item.size_prices,
-        ingredients: [],
       }));
     }
   }

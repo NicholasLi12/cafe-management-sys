@@ -84,5 +84,29 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: `Could not create owner employee record: ${employeeError.message}${cleanupMessage}` }, { status: 500 });
   }
 
+  const defaultModifiers = [
+    { modifier_name: 'Oat Milk', group_type: 'milk', price_delta: 15, sort_order: 10 },
+    { modifier_name: 'Soy Milk', group_type: 'milk', price_delta: 10, sort_order: 20 },
+    { modifier_name: 'Extra Espresso Shot', group_type: 'addon', price_delta: 20, sort_order: 30 },
+    { modifier_name: 'Vanilla Syrup', group_type: 'addon', price_delta: 10, sort_order: 40 },
+    { modifier_name: 'Caramel Drizzle', group_type: 'addon', price_delta: 10, sort_order: 50 },
+  ].map((modifier) => ({
+    tenant_id: userId,
+    ...modifier,
+    action_type: 'none',
+    target_slot: null,
+    supply_id: null,
+    quantity_used: null,
+    is_active: true,
+  }));
+  const { error: modifierError } = await adminClient
+    .from('modifier_supply_rules')
+    .upsert(defaultModifiers, { onConflict: 'tenant_id,modifier_name', ignoreDuplicates: true });
+  if (modifierError) {
+    const { error: cleanupError } = await adminClient.auth.admin.deleteUser(userId);
+    const cleanupMessage = cleanupError ? ` Account cleanup failed: ${cleanupError.message}` : '';
+    return NextResponse.json({ error: `Could not create default drink modifiers: ${modifierError.message}${cleanupMessage}` }, { status: 500 });
+  }
+
   return NextResponse.json({ email: created.user.email ?? email }, { status: 201 });
 }

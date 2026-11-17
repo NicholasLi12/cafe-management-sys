@@ -38,6 +38,14 @@ const statusStyles = {
   reserved: 'bg-violet-50 text-violet-700 border-violet-200',
 };
 type DrinkModifier = { group: string; option: string; upcharge: number };
+export type PosDrinkModifier = {
+  id: string;
+  modifier_name: string;
+  group_type: 'milk' | 'addon' | 'size_cup';
+  price_delta: number;
+  is_active: boolean;
+  sort_order: number;
+};
 type CartLine = {
   menu_item_id: string;
   quantity: number;
@@ -64,18 +72,20 @@ const defaultModifierChoices: ModifierChoices = {
   notes: '',
 };
 
-const milkUpcharges: Record<string, number> = { Regular: 0, 'Oat Milk': 15, 'Soy Milk': 10 };
-const addOnUpcharges: Record<string, number> = {
-  'Extra Espresso Shot': 20,
-  'Vanilla Syrup': 10,
-  'Caramel Drizzle': 10,
-};
+const demoDrinkModifiers: PosDrinkModifier[] = [
+  { id: 'demo-oat', modifier_name: 'Oat Milk', group_type: 'milk', price_delta: 15, is_active: true, sort_order: 10 },
+  { id: 'demo-soy', modifier_name: 'Soy Milk', group_type: 'milk', price_delta: 10, is_active: true, sort_order: 20 },
+  { id: 'demo-shot', modifier_name: 'Extra Espresso Shot', group_type: 'addon', price_delta: 20, is_active: true, sort_order: 30 },
+  { id: 'demo-vanilla', modifier_name: 'Vanilla Syrup', group_type: 'addon', price_delta: 10, is_active: true, sort_order: 40 },
+  { id: 'demo-caramel', modifier_name: 'Caramel Drizzle', group_type: 'addon', price_delta: 10, is_active: true, sort_order: 50 },
+];
 
 function isDrink(item: OrderMenuItem) {
   return /coffee|tea|drink|beverage|juice|smoothie|latte|espresso/i.test(item.category);
 }
 
-function getModifiers(choices: ModifierChoices, item: OrderMenuItem): DrinkModifier[] {
+function getModifiers(choices: ModifierChoices, item: OrderMenuItem, modifiers: PosDrinkModifier[]): DrinkModifier[] {
+  const milkOption = modifiers.find((modifier) => modifier.group_type === 'milk' && modifier.modifier_name === choices.milk);
   return [
     ...(item.has_sizes ? [{
       group: 'Size',
@@ -84,10 +94,14 @@ function getModifiers(choices: ModifierChoices, item: OrderMenuItem): DrinkModif
     }] : []),
     { group: 'Sweetness', option: choices.sweetness, upcharge: 0 },
     { group: 'Ice', option: choices.ice, upcharge: 0 },
-    { group: 'Milk', option: choices.milk, upcharge: milkUpcharges[choices.milk] ?? 0 },
-    ...Object.keys(addOnUpcharges)
-      .filter((addOn) => choices.addOns.includes(addOn))
-      .map((addOn) => ({ group: 'Add-on', option: addOn, upcharge: addOnUpcharges[addOn] })),
+    ...(choices.milk === 'Regular' ? [{ group: 'Milk', option: 'Regular', upcharge: 0 }] : milkOption ? [{
+      group: 'Milk',
+      option: milkOption.modifier_name,
+      upcharge: Number(milkOption.price_delta),
+    }] : []),
+    ...modifiers
+      .filter((modifier) => modifier.group_type === 'addon' && choices.addOns.includes(modifier.modifier_name))
+      .map((modifier) => ({ group: 'Add-on', option: modifier.modifier_name, upcharge: Number(modifier.price_delta) })),
   ];
 }
 
@@ -107,17 +121,24 @@ function getErrorMessage(error: unknown) {
 export function TableFloor({
   tables,
   menuItems,
+  drinkModifiers,
   demo = false,
   isAdmin = false,
 }: {
   tables: CafeTable[];
   menuItems: OrderMenuItem[];
+  drinkModifiers: PosDrinkModifier[];
   demo?: boolean;
   isAdmin?: boolean;
 }) {
   const router = useRouter();
   const [tableRows, setTableRows] = useState(demo && !tables.length ? demoTables : tables);
   const orderMenu = demo && !menuItems.length ? demoMenu : menuItems;
+  const activeModifiers = (demo && !drinkModifiers.length ? demoDrinkModifiers : drinkModifiers)
+    .filter((modifier) => modifier.is_active && modifier.group_type !== 'size_cup')
+    .sort((a, b) => a.sort_order - b.sort_order || a.modifier_name.localeCompare(b.modifier_name));
+  const milkOptions = activeModifiers.filter((modifier) => modifier.group_type === 'milk');
+  const addOnOptions = activeModifiers.filter((modifier) => modifier.group_type === 'addon');
   const [orderType, setOrderType] = useState<OrderType>('dine_in');
   const [cart, setCart] = useState<CartLine[]>([]);
   const [customizingItem, setCustomizingItem] = useState<OrderMenuItem | null>(null);
@@ -151,7 +172,7 @@ export function TableFloor({
 
   const addCustomizedDrink = () => {
     if (!customizingItem) return;
-    addToCart(customizingItem, getModifiers(modifierChoices, customizingItem), modifierChoices.notes);
+    addToCart(customizingItem, getModifiers(modifierChoices, customizingItem, activeModifiers), modifierChoices.notes);
     setCustomizingItem(null);
   };
 
@@ -387,7 +408,7 @@ export function TableFloor({
                   {isDrink(item) ? (
                     <div className="mt-3 flex gap-2">
                       <button type="button" disabled={demo || isRecordingOrder} onClick={() => selectMenuItem(item)} className="min-h-11 flex-1 rounded-lg bg-brand-600 px-3 py-2 text-sm font-medium text-white disabled:opacity-50">Customize</button>
-                      <button type="button" disabled={demo || isRecordingOrder} onClick={() => addToCart(item, getModifiers(defaultModifierChoices, item))} className="min-h-11 rounded-lg border border-slate-300 px-3 py-2 text-sm disabled:opacity-50">Quick Add Default</button>
+                      <button type="button" disabled={demo || isRecordingOrder} onClick={() => addToCart(item, getModifiers(defaultModifierChoices, item, activeModifiers))} className="min-h-11 rounded-lg border border-slate-300 px-3 py-2 text-sm disabled:opacity-50">Quick Add Default</button>
                     </div>
                   ) : (
                     <button type="button" disabled={demo || isRecordingOrder} onClick={() => selectMenuItem(item)} className="mt-3 min-h-11 w-full rounded-lg bg-brand-600 px-3 py-2 text-sm font-medium text-white disabled:opacity-50">Add to order</button>
@@ -477,14 +498,12 @@ export function TableFloor({
             {([
               ['Sweetness', ['0%', '25%', '50%', '75%', '100%'], 'sweetness'],
               ['Ice level', ['Normal', 'Less Ice', 'No Ice', 'Hot'], 'ice'],
-              ['Milk option', ['Regular', 'Oat Milk', 'Soy Milk'], 'milk'],
             ] as const).map(([label, options, key]) => (
               <fieldset key={key} className="mt-5">
                 <legend className="mb-2 text-sm font-semibold text-slate-800">{label}</legend>
                 <div className="flex flex-wrap gap-2">
                   {options.map((option) => {
                     const selected = modifierChoices[key] === option;
-                    const upcharge = key === 'milk' ? milkUpcharges[option] ?? 0 : 0;
                     return (
                       <button
                         key={option}
@@ -493,7 +512,7 @@ export function TableFloor({
                         onClick={() => setModifierChoices((current) => ({ ...current, [key]: option }))}
                         className={`min-h-11 rounded-full border px-4 py-2 text-sm font-medium ${selected ? 'border-brand-600 bg-brand-600 text-white' : 'border-slate-300 bg-white text-slate-700'}`}
                       >
-                        {option}{upcharge > 0 ? ` (+${formatCurrencyTHB(upcharge)})` : ''}
+                        {option}
                       </button>
                     );
                   })}
@@ -502,22 +521,45 @@ export function TableFloor({
             ))}
 
             <fieldset className="mt-5">
-              <legend className="mb-2 text-sm font-semibold text-slate-800">Add-ons</legend>
+              <legend className="mb-2 text-sm font-semibold text-slate-800">Milk option</legend>
               <div className="flex flex-wrap gap-2">
-                {Object.entries(addOnUpcharges).map(([addOn, upcharge]) => {
-                  const selected = modifierChoices.addOns.includes(addOn);
+                {[
+                  { name: 'Regular', priceDelta: 0 },
+                  ...milkOptions.map((modifier) => ({ name: modifier.modifier_name, priceDelta: Number(modifier.price_delta) })),
+                ].map((option) => {
+                  const selected = modifierChoices.milk === option.name;
                   return (
                     <button
-                      key={addOn}
+                      key={option.name}
+                      type="button"
+                      aria-pressed={selected}
+                      onClick={() => setModifierChoices((current) => ({ ...current, milk: option.name }))}
+                      className={`min-h-11 rounded-full border px-4 py-2 text-sm font-medium ${selected ? 'border-brand-600 bg-brand-600 text-white' : 'border-slate-300 bg-white text-slate-700'}`}
+                    >
+                      {option.name}{option.priceDelta !== 0 ? ` (${option.priceDelta > 0 ? '+' : '−'}${formatCurrencyTHB(Math.abs(option.priceDelta))})` : ''}
+                    </button>
+                  );
+                })}
+              </div>
+            </fieldset>
+
+            <fieldset className="mt-5">
+              <legend className="mb-2 text-sm font-semibold text-slate-800">Add-ons</legend>
+              <div className="flex flex-wrap gap-2">
+                {addOnOptions.map((addOn) => {
+                  const selected = modifierChoices.addOns.includes(addOn.modifier_name);
+                  return (
+                    <button
+                      key={addOn.id}
                       type="button"
                       aria-pressed={selected}
                       onClick={() => setModifierChoices((current) => ({
                         ...current,
-                        addOns: selected ? current.addOns.filter((value) => value !== addOn) : [...current.addOns, addOn],
+                        addOns: selected ? current.addOns.filter((value) => value !== addOn.modifier_name) : [...current.addOns, addOn.modifier_name],
                       }))}
                       className={`min-h-11 rounded-full border px-4 py-2 text-sm font-medium ${selected ? 'border-brand-600 bg-brand-600 text-white' : 'border-slate-300 bg-white text-slate-700'}`}
                     >
-                      {addOn} (+{formatCurrencyTHB(upcharge)})
+                      {addOn.modifier_name} ({Number(addOn.price_delta) > 0 ? '+' : Number(addOn.price_delta) < 0 ? '−' : ''}{formatCurrencyTHB(Math.abs(Number(addOn.price_delta)))})
                     </button>
                   );
                 })}
@@ -529,7 +571,7 @@ export function TableFloor({
             </label>
 
             {(() => {
-              const unitPrice = customizingItem.price + getModifiers(modifierChoices, customizingItem).reduce((sum, modifier) => sum + modifier.upcharge, 0);
+              const unitPrice = customizingItem.price + getModifiers(modifierChoices, customizingItem, activeModifiers).reduce((sum, modifier) => sum + modifier.upcharge, 0);
               return (
                 <button type="button" onClick={addCustomizedDrink} className="mt-6 min-h-12 w-full rounded-xl bg-brand-600 px-4 py-3 font-semibold text-white hover:bg-brand-700">
                   Add to Order · {formatCurrencyTHB(unitPrice)}

@@ -19,11 +19,18 @@ export type RecipeIngredient = {
 };
 
 export type ModifierSupplyRule = {
+  id: string;
   modifier_name: string;
-  action_type: 'replace_slot' | 'add_ingredient';
+  group_type: 'milk' | 'addon' | 'size_cup';
+  action_type: 'none' | 'replace_slot' | 'add_ingredient';
   target_slot: string | null;
-  supply_id: string;
+  supply_id: string | null;
   quantity_used: number | null;
+  price_delta: number;
+  is_active: boolean;
+  sort_order: number;
+  supply_name?: string | null;
+  supply_unit?: string | null;
 };
 
 export type MenuItem = {
@@ -63,16 +70,29 @@ const emptyForm: MenuForm = {
   has_sizes: true,
   size_prices: defaultSizePrices,
 };
-const supportedModifiers = [
-  'Oat Milk',
-  'Soy Milk',
-  'Extra Espresso Shot',
-  'Vanilla Syrup',
-  'Caramel Drizzle',
-  'Small Cup',
-  'Medium Cup',
-  'Large Cup',
-] as const;
+type ModifierForm = {
+  id: string | null;
+  modifier_name: string;
+  group_type: 'milk' | 'addon' | 'size_cup';
+  price_delta: string;
+  action_type: 'none' | 'replace_slot' | 'add_ingredient';
+  supply_id: string;
+  quantity_used: string;
+  is_active: boolean;
+  sort_order: string;
+};
+
+const emptyModifierForm: ModifierForm = {
+  id: null,
+  modifier_name: '',
+  group_type: 'milk',
+  price_delta: '0',
+  action_type: 'none',
+  supply_id: '',
+  quantity_used: '',
+  is_active: true,
+  sort_order: '0',
+};
 
 function isNonDrinkCategory(category: string) {
   return /food|pastry|bakery|dessert|snack/i.test(category);
@@ -104,9 +124,8 @@ export function MenuManager({
   const [editingId, setEditingId] = useState<string | null>(null);
   const [recipeItem, setRecipeItem] = useState<MenuItem | null>(null);
   const [recipeDraft, setRecipeDraft] = useState<Record<string, { quantity: string; slot_type: 'standard' | 'milk' }>>({});
-  const [ruleDrafts, setRuleDrafts] = useState<Record<string, { supply_id: string; quantity_used: string }>>({});
-  const [ruleActions, setRuleActions] = useState<Record<string, 'replace_slot' | 'add_ingredient'>>({});
   const [rules, setRules] = useState(modifierRules);
+  const [modifierForm, setModifierForm] = useState<ModifierForm>(emptyModifierForm);
   const [isSaving, setIsSaving] = useState(false);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState('');
@@ -327,56 +346,99 @@ export function MenuManager({
     }
   };
 
-  const saveModifierRule = async (modifierName: string) => {
+  const saveModifier = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
     setErrorMessage('');
     setSuccessMessage('');
-    setBusyId(`modifier-${modifierName}`);
+    const modifierName = modifierForm.modifier_name.trim();
+    setBusyId('modifier-form');
     try {
-      const ownerId = await getOwnerId();
-      const draft = ruleDrafts[modifierName] ?? {
-        supply_id: rules.find((rule) => rule.modifier_name === modifierName)?.supply_id ?? '',
-        quantity_used: String(rules.find((rule) => rule.modifier_name === modifierName)?.quantity_used ?? (modifierName.endsWith('Cup') ? 1 : '')),
-      };
-      const actionType = ruleActions[modifierName]
-        ?? rules.find((rule) => rule.modifier_name === modifierName)?.action_type
-        ?? (modifierName.endsWith('Milk') ? 'replace_slot' : 'add_ingredient');
-      const supabase = createSupabaseClient();
-      if (!draft.supply_id) {
-        const { error } = await supabase.from('modifier_supply_rules')
-          .delete()
-          .eq('tenant_id', ownerId)
-          .eq('modifier_name', modifierName);
-        if (error) throw error;
-        setRules((current) => current.filter((rule) => rule.modifier_name !== modifierName));
-        setSuccessMessage(`${modifierName} stock rule removed.`);
-      } else {
-        const quantity = Number(draft.quantity_used);
-        if (actionType === 'add_ingredient' && (!Number.isFinite(quantity) || quantity <= 0)) {
-          throw new Error('Enter a positive quantity for an added ingredient.');
-        }
-        const payload: ModifierSupplyRule & { tenant_id: string } = {
-          tenant_id: ownerId,
-          modifier_name: modifierName,
-          action_type: actionType,
-          target_slot: actionType === 'replace_slot' ? 'milk' : null,
-          supply_id: draft.supply_id,
-          quantity_used: actionType === 'add_ingredient' ? quantity : null,
-        };
-        const { data, error } = await supabase.from('modifier_supply_rules')
-          .upsert(payload, { onConflict: 'tenant_id,modifier_name' })
-          .select('modifier_name, action_type, target_slot, supply_id, quantity_used')
-          .single();
-        if (error) throw error;
-        const updatedRule = { ...data, quantity_used: data.quantity_used === null ? null : Number(data.quantity_used) } as ModifierSupplyRule;
-        setRules((current) => [
-          ...current.filter((rule) => rule.modifier_name !== modifierName),
-          updatedRule,
-        ]);
-        setSuccessMessage(`${modifierName} stock rule saved.`);
+      if (!modifierName) throw new Error('Modifier name is required.');
+      if (modifierForm.action_type === 'replace_slot' && modifierForm.group_type !== 'milk') {
+        throw new Error('Only Milk Option modifiers can replace the milk recipe slot.');
       }
+      if (modifierForm.action_type !== 'none' && !modifierForm.supply_id) {
+        throw new Error('Select a linked supply or choose None / Unlinked.');
+      }
+      const quantity = modifierForm.action_type === 'add_ingredient' ? Number(modifierForm.quantity_used) : null;
+      if (quantity !== null && (!Number.isFinite(quantity) || quantity <= 0)) {
+        throw new Error('Quantity used must be a positive number.');
+      }
+      const ownerId = await getOwnerId();
+      const supabase = createSupabaseClient();
+      const selectedSupply = supplies.find((supply) => supply.id === modifierForm.supply_id);
+      const payload = {
+        tenant_id: ownerId,
+        modifier_name: modifierName,
+        group_type: modifierForm.group_type,
+        price_delta: Number(modifierForm.price_delta),
+        action_type: modifierForm.action_type,
+        target_slot: modifierForm.action_type === 'replace_slot' ? 'milk' : null,
+        supply_id: modifierForm.action_type === 'none' ? null : modifierForm.supply_id,
+        quantity_used: quantity,
+        is_active: modifierForm.is_active,
+        sort_order: Number(modifierForm.sort_order) || 0,
+      };
+      if (!Number.isFinite(payload.price_delta)) throw new Error('Customer price adjustment must be a valid amount.');
+      const result = modifierForm.id
+        ? await supabase.from('modifier_supply_rules').update(payload).eq('tenant_id', ownerId).eq('id', modifierForm.id)
+          .select('id, modifier_name, group_type, price_delta, action_type, target_slot, supply_id, quantity_used, is_active, sort_order').single()
+        : await supabase.from('modifier_supply_rules').insert(payload)
+          .select('id, modifier_name, group_type, price_delta, action_type, target_slot, supply_id, quantity_used, is_active, sort_order').single();
+      if (result.error) throw result.error;
+      const updatedRule: ModifierSupplyRule = {
+        ...result.data,
+        price_delta: Number(result.data.price_delta),
+        quantity_used: result.data.quantity_used === null ? null : Number(result.data.quantity_used),
+        supply_name: selectedSupply?.item_name ?? null,
+        supply_unit: selectedSupply?.unit ?? null,
+      };
+      setRules((current) => [
+        ...current.filter((rule) => rule.id !== updatedRule.id && rule.modifier_name !== updatedRule.modifier_name),
+        updatedRule,
+      ].sort((a, b) => a.sort_order - b.sort_order || a.modifier_name.localeCompare(b.modifier_name)));
+      setModifierForm(emptyModifierForm);
+      setSuccessMessage(`${modifierName} modifier saved.`);
       router.refresh();
     } catch (error) {
-      setErrorMessage(error instanceof Error ? error.message : `Could not save ${modifierName} stock rule.`);
+      setErrorMessage(error instanceof Error ? error.message : 'Could not save drink modifier.');
+    } finally {
+      setBusyId(null);
+    }
+  };
+
+  const editModifier = (rule: ModifierSupplyRule) => {
+    setModifierForm({
+      id: rule.id,
+      modifier_name: rule.modifier_name,
+      group_type: rule.group_type,
+      price_delta: String(rule.price_delta),
+      action_type: rule.action_type,
+      supply_id: rule.supply_id ?? '',
+      quantity_used: String(rule.quantity_used ?? ''),
+      is_active: rule.is_active,
+      sort_order: String(rule.sort_order),
+    });
+  };
+
+  const deleteModifier = async (rule: ModifierSupplyRule) => {
+    if (!window.confirm(`Delete the ${rule.modifier_name} modifier?`)) return;
+    setErrorMessage('');
+    setSuccessMessage('');
+    setBusyId(`delete-${rule.id}`);
+    try {
+      const ownerId = await getOwnerId();
+      const { error } = await createSupabaseClient().from('modifier_supply_rules')
+        .delete()
+        .eq('tenant_id', ownerId)
+        .eq('id', rule.id);
+      if (error) throw error;
+      setRules((current) => current.filter((entry) => entry.id !== rule.id));
+      if (modifierForm.id === rule.id) setModifierForm(emptyModifierForm);
+      setSuccessMessage(`${rule.modifier_name} modifier deleted.`);
+      router.refresh();
+    } catch (error) {
+      setErrorMessage(error instanceof Error ? error.message : `Could not delete ${rule.modifier_name}.`);
     } finally {
       setBusyId(null);
     }
@@ -493,7 +555,7 @@ export function MenuManager({
                 {(isAdmin || demo) && <td className="px-4 py-3">฿{Number(item.estimated_cost).toFixed(2)}</td>}
                 <td className="px-4 py-3">
                   <span className={`rounded-full px-2 py-1 text-xs font-medium ${item.is_available ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-100 text-slate-600'}`}>{item.is_available ? 'Available' : 'Unavailable'}</span>
-                  {(isAdmin || demo) && item.ingredients.length > 0 && <p className="mt-1 text-xs text-slate-500">{item.ingredients.map((ingredient) => `${supplies.find((supply) => supply.id === ingredient.supply_id)?.item_name ?? 'Ingredient'} × ${ingredient.quantity_required}`).join(', ')}</p>}
+                  {item.ingredients.length > 0 && <p className="mt-1 text-xs text-slate-500">{item.ingredients.map((ingredient) => `${supplies.find((supply) => supply.id === ingredient.supply_id)?.item_name ?? 'Ingredient'} × ${ingredient.quantity_required} ${supplies.find((supply) => supply.id === ingredient.supply_id)?.unit ?? ''}`).join(', ')}</p>}
                 </td>
                 {(isAdmin || demo) && <td className="px-4 py-3">
                   <div className="flex gap-2">
@@ -509,58 +571,106 @@ export function MenuManager({
         </table>
       </div>
 
-      {isAdmin && !demo && <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-soft">
-        <div>
-          <h2 className="text-lg font-semibold text-slate-900">Modifier Stock Rules</h2>
-          <p className="mt-1 text-sm text-slate-500">Map POS drink modifiers to cafe supplies. Milk options replace the recipe’s Milk base slot by default.</p>
+      <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-soft">
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+          <div>
+            <h2 className="text-lg font-semibold text-slate-900">Drink Modifiers & Stock Rules</h2>
+            <p className="mt-1 text-sm text-slate-500">Manage customer options, price adjustments, and optional inventory deductions for this cafe.</p>
+          </div>
+          {isAdmin && !demo && (
+            <button type="button" onClick={() => setModifierForm(emptyModifierForm)} className="rounded-lg bg-brand-600 px-4 py-2 text-sm font-semibold text-white hover:bg-brand-700">
+              + Add Modifier
+            </button>
+          )}
         </div>
+
+        {isAdmin && !demo && (
+          <form onSubmit={saveModifier} className="mt-4 rounded-xl bg-slate-50 p-4">
+            <h3 className="font-semibold text-slate-900">{modifierForm.id ? 'Edit Modifier' : 'Add Modifier'}</h3>
+            <div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+              <label className="text-sm text-slate-700">Name
+                <input required value={modifierForm.modifier_name} onChange={(event) => setModifierForm((current) => ({ ...current, modifier_name: event.target.value }))} disabled={busyId === 'modifier-form'} className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2" />
+              </label>
+              <label className="text-sm text-slate-700">Category
+                <select value={modifierForm.group_type} onChange={(event) => setModifierForm((current) => ({ ...current, group_type: event.target.value as ModifierForm['group_type'] }))} disabled={busyId === 'modifier-form'} className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2">
+                  <option value="milk">Milk Option</option>
+                  <option value="addon">Add-on</option>
+                  {modifierForm.group_type === 'size_cup' && <option value="size_cup">Size Cup (inventory only)</option>}
+                </select>
+              </label>
+              <label className="text-sm text-slate-700">Customer Price (+฿)
+                <input type="number" step="0.01" value={modifierForm.price_delta} onChange={(event) => setModifierForm((current) => ({ ...current, price_delta: event.target.value }))} disabled={busyId === 'modifier-form'} className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2" />
+              </label>
+              <label className="text-sm text-slate-700">Inventory Action
+                <select value={modifierForm.action_type} onChange={(event) => setModifierForm((current) => ({
+                  ...current,
+                  action_type: event.target.value as ModifierForm['action_type'],
+                  supply_id: event.target.value === 'none' ? '' : current.supply_id,
+                  quantity_used: event.target.value === 'add_ingredient' && current.group_type === 'size_cup' && !current.quantity_used ? '1' : current.quantity_used,
+                }))} disabled={busyId === 'modifier-form'} className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2">
+                  <option value="none">None / Unlinked</option>
+                  {modifierForm.group_type === 'milk' && <option value="replace_slot">Replace Milk Slot</option>}
+                  <option value="add_ingredient">Add Ingredient</option>
+                </select>
+              </label>
+              <label className="text-sm text-slate-700">Linked Supply
+                <select value={modifierForm.supply_id} onChange={(event) => setModifierForm((current) => ({ ...current, supply_id: event.target.value }))} disabled={busyId === 'modifier-form' || modifierForm.action_type === 'none'} className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2">
+                  <option value="">Select a supply</option>
+                  {supplies.map((supply) => <option key={supply.id} value={supply.id}>{supply.item_name} ({supply.unit})</option>)}
+                </select>
+              </label>
+              {modifierForm.action_type === 'add_ingredient' && (
+                <label className="text-sm text-slate-700">Quantity Used
+                  <input type="number" min="0.001" step="0.001" value={modifierForm.quantity_used} onChange={(event) => setModifierForm((current) => ({ ...current, quantity_used: event.target.value }))} disabled={busyId === 'modifier-form'} className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2" />
+                </label>
+              )}
+              {modifierForm.action_type === 'replace_slot' && <p className="self-end text-sm text-slate-500">Uses the selected drink’s scaled Milk base recipe quantity.</p>}
+              <label className="text-sm text-slate-700">Display Order
+                <input type="number" step="1" value={modifierForm.sort_order} onChange={(event) => setModifierForm((current) => ({ ...current, sort_order: event.target.value }))} disabled={busyId === 'modifier-form'} className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2" />
+              </label>
+              <label className="inline-flex items-center gap-2 self-end pb-2 text-sm text-slate-700">
+                <input type="checkbox" checked={modifierForm.is_active} onChange={(event) => setModifierForm((current) => ({ ...current, is_active: event.target.checked }))} disabled={busyId === 'modifier-form'} />
+                Available in POS
+              </label>
+            </div>
+            <div className="mt-3 flex gap-2">
+              <button type="submit" disabled={busyId === 'modifier-form'} className="rounded-lg bg-brand-600 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50">{busyId === 'modifier-form' ? 'Saving…' : modifierForm.id ? 'Save Modifier' : 'Create Modifier'}</button>
+              {modifierForm.id && <button type="button" onClick={() => setModifierForm(emptyModifierForm)} className="rounded-lg border border-slate-300 px-4 py-2 text-sm">Cancel</button>}
+            </div>
+          </form>
+        )}
+
         <div className="mt-4 grid gap-3 lg:grid-cols-2">
-          {supportedModifiers.map((modifierName) => {
-            const existing = rules.find((rule) => rule.modifier_name === modifierName);
-            const draft = ruleDrafts[modifierName];
-            const selectedSupplyId = draft?.supply_id ?? existing?.supply_id ?? '';
-            const actionType = ruleActions[modifierName] ?? existing?.action_type ?? (modifierName.endsWith('Milk') ? 'replace_slot' : 'add_ingredient');
-            const quantity = draft?.quantity_used ?? String(existing?.quantity_used ?? '');
-            return (
-              <div key={modifierName} className="rounded-xl border border-slate-200 p-3">
-                <p className="font-semibold text-slate-900">{modifierName}</p>
-                <div className="mt-2 grid gap-2 sm:grid-cols-2">
-                  <label className="text-xs text-slate-600">Action
-                    <select value={actionType} onChange={(event) => setRuleActions((current) => ({
-                      ...current,
-                      [modifierName]: event.target.value as 'replace_slot' | 'add_ingredient',
-                    }))} className="mt-1 w-full rounded-lg border border-slate-300 px-2 py-2 text-sm">
-                      <option value="replace_slot">Replace Milk Slot</option>
-                      <option value="add_ingredient">Add Ingredient</option>
-                    </select>
-                  </label>
-                  <label className="text-xs text-slate-600">Supply
-                    <select value={selectedSupplyId} onChange={(event) => setRuleDrafts((current) => ({
-                      ...current,
-                      [modifierName]: { ...current[modifierName], supply_id: event.target.value,                       quantity_used: current[modifierName]?.quantity_used ?? (modifierName.endsWith('Cup') ? '1' : quantity) },
-                    }))} className="mt-1 w-full rounded-lg border border-slate-300 px-2 py-2 text-sm">
-                      <option value="">Not linked</option>
-                      {supplies.map((supply) => <option key={supply.id} value={supply.id}>{supply.item_name} ({supply.unit})</option>)}
-                    </select>
-                  </label>
-                  {actionType === 'add_ingredient' && (
-                    <label className="text-xs text-slate-600 sm:col-span-2">Quantity used per modifier
-                      <input type="number" min="0.001" step="0.001" value={quantity || (modifierName.endsWith('Cup') ? '1' : '')} onChange={(event) => setRuleDrafts((current) => ({
-                        ...current,
-                        [modifierName]: { ...current[modifierName], supply_id: current[modifierName]?.supply_id ?? selectedSupplyId, quantity_used: event.target.value },
-                      }))} className="mt-1 w-full rounded-lg border border-slate-300 px-2 py-2 text-sm" />
-                    </label>
-                  )}
-                  {actionType === 'replace_slot' && <p className="self-end text-xs text-slate-500 sm:col-span-2">Uses the quantity specified by each item’s Milk base recipe line.</p>}
+          {rules.map((rule) => (
+            <article key={rule.id} className="rounded-xl border border-slate-200 p-4">
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div>
+                  <h3 className="font-semibold text-slate-900">{rule.modifier_name}</h3>
+                  <p className="mt-1 text-sm text-slate-600">
+                    {rule.group_type === 'milk' ? 'Milk Option' : rule.group_type === 'size_cup' ? 'Size Cup · inventory only' : 'Add-on'}
+                    {' · '} {formatPriceDelta(rule.price_delta)}
+                    {' · '} {rule.is_active ? 'Active in POS' : 'Inactive'}
+                  </p>
+                  <p className="mt-1 text-xs text-slate-500">
+                    {rule.action_type === 'none'
+                      ? 'No inventory link'
+                      : rule.action_type === 'replace_slot'
+                        ? `Replaces Milk slot${rule.supply_name ? ` · ${rule.supply_name} (${rule.supply_unit})` : ''}`
+                        : `${rule.supply_name ?? (rule.supply_id ? 'Linked supply' : 'Unlinked')} · ${rule.quantity_used ?? 0} ${rule.supply_unit ?? ''} per selection`}
+                  </p>
                 </div>
-                <button type="button" disabled={busyId === `modifier-${modifierName}`} onClick={() => void saveModifierRule(modifierName)} className="mt-3 rounded-lg bg-brand-600 px-3 py-2 text-sm font-semibold text-white disabled:opacity-50">
-                  {busyId === `modifier-${modifierName}` ? 'Saving…' : 'Save Stock Rule'}
-                </button>
+                {isAdmin && !demo && (
+                  <div className="flex gap-2">
+                    <button type="button" onClick={() => editModifier(rule)} disabled={!!busyId} className="rounded-lg border border-slate-300 px-3 py-1.5 text-sm disabled:opacity-50">Edit</button>
+                    <button type="button" onClick={() => void deleteModifier(rule)} disabled={busyId === `delete-${rule.id}`} className="rounded-lg border border-rose-200 px-3 py-1.5 text-sm text-rose-700 disabled:opacity-50">{busyId === `delete-${rule.id}` ? 'Deleting…' : 'Delete'}</button>
+                  </div>
+                )}
               </div>
-            );
-          })}
+            </article>
+          ))}
+          {!rules.length && <p className="rounded-xl bg-slate-50 p-4 text-sm text-slate-500 lg:col-span-2">No drink modifiers have been configured for this cafe.</p>}
         </div>
-      </section>}
+      </section>
 
       {recipeItem && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 p-4" role="presentation" onMouseDown={(event) => {
