@@ -23,8 +23,8 @@ export default async function MenuPage() {
     const franchiseId = profile.franchise_owner_id ?? user.id;
     const [baseItemsResult, supplyResult] = await Promise.all([
       role === 'admin'
-        ? supabase.from('menu_items').select('id, name, category, price, estimated_cost, is_available').eq('owner_id', franchiseId).order('name')
-        : supabase.from('menu_items').select('id, name, category, price, is_available').eq('owner_id', franchiseId).order('name'),
+        ? supabase.from('menu_items').select('id, name, category, price, estimated_cost, is_available, has_sizes, size_prices').eq('owner_id', franchiseId).order('name')
+        : supabase.from('menu_items').select('id, name, category, price, is_available, has_sizes, size_prices').eq('owner_id', franchiseId).order('name'),
       role === 'admin'
         ? supabase.from('supplies').select('id, item_name, unit, unit_cost').eq('owner_id', franchiseId).order('item_name')
         : Promise.resolve({ data: null, error: null }),
@@ -72,6 +72,8 @@ export default async function MenuPage() {
         price: Number(item.price),
         estimated_cost: Number('estimated_cost' in item ? item.estimated_cost ?? 0 : 0),
         is_available: Boolean(item.is_available),
+        has_sizes: item.has_sizes,
+        size_prices: item.size_prices,
         ingredients: recipesByItem.get(item.id) ?? [],
       }));
     } else {
@@ -80,6 +82,8 @@ export default async function MenuPage() {
         price: Number(item.price),
         estimated_cost: 0,
         is_available: Boolean(item.is_available),
+        has_sizes: item.has_sizes,
+        size_prices: item.size_prices,
         ingredients: [],
       }));
     }

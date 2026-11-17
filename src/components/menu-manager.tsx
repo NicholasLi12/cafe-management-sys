@@ -33,18 +33,55 @@ export type MenuItem = {
   price: number;
   estimated_cost: number;
   is_available: boolean;
+  has_sizes: boolean;
+  size_prices: Record<'Small' | 'Medium' | 'Large', number>;
   ingredients: RecipeIngredient[];
 };
 
 const demoItems: MenuItem[] = [
-  { id: 'demo-espresso', name: 'Espresso', category: 'Coffee', price: 45, estimated_cost: 12, is_available: true, ingredients: [] },
-  { id: 'demo-latte', name: 'Latte', category: 'Coffee', price: 75, estimated_cost: 20, is_available: true, ingredients: [] },
-  { id: 'demo-croissant', name: 'Butter Croissant', category: 'Bakery', price: 60, estimated_cost: 24, is_available: true, ingredients: [] },
+  { id: 'demo-espresso', name: 'Espresso', category: 'Coffee', price: 45, estimated_cost: 12, is_available: true, has_sizes: true, size_prices: { Small: -10, Medium: 0, Large: 15 }, ingredients: [] },
+  { id: 'demo-latte', name: 'Latte', category: 'Coffee', price: 75, estimated_cost: 20, is_available: true, has_sizes: true, size_prices: { Small: -10, Medium: 0, Large: 15 }, ingredients: [] },
+  { id: 'demo-croissant', name: 'Butter Croissant', category: 'Bakery', price: 60, estimated_cost: 24, is_available: true, has_sizes: false, size_prices: { Small: -10, Medium: 0, Large: 15 }, ingredients: [] },
 ];
 
-type MenuForm = { name: string; category: string; price: string; estimated_cost: string; is_available: boolean };
-const emptyForm: MenuForm = { name: '', category: 'Coffee', price: '', estimated_cost: '0', is_available: true };
-const supportedModifiers = ['Oat Milk', 'Soy Milk', 'Extra Espresso Shot', 'Vanilla Syrup', 'Caramel Drizzle'] as const;
+type MenuForm = {
+  name: string;
+  category: string;
+  price: string;
+  estimated_cost: string;
+  is_available: boolean;
+  has_sizes: boolean;
+  size_prices: Record<'Small' | 'Medium' | 'Large', string>;
+};
+const defaultSizePrices = { Small: '-10', Medium: '0', Large: '15' };
+const emptyForm: MenuForm = {
+  name: '',
+  category: 'Coffee',
+  price: '',
+  estimated_cost: '0',
+  is_available: true,
+  has_sizes: true,
+  size_prices: defaultSizePrices,
+};
+const supportedModifiers = [
+  'Oat Milk',
+  'Soy Milk',
+  'Extra Espresso Shot',
+  'Vanilla Syrup',
+  'Caramel Drizzle',
+  'Small Cup',
+  'Medium Cup',
+  'Large Cup',
+] as const;
+
+function isNonDrinkCategory(category: string) {
+  return /food|pastry|bakery|dessert|snack/i.test(category);
+}
+
+function formatPriceDelta(value: number) {
+  const amount = Number(value) || 0;
+  return `${amount > 0 ? '+' : amount < 0 ? '−' : ''}฿${Math.abs(amount).toFixed(2)}`;
+}
 
 export function MenuManager({
   menuItems,
@@ -99,6 +136,12 @@ export function MenuManager({
       price: String(item.price),
       estimated_cost: String(item.estimated_cost),
       is_available: item.is_available,
+      has_sizes: item.has_sizes,
+      size_prices: {
+        Small: String(item.size_prices?.Small ?? -10),
+        Medium: String(item.size_prices?.Medium ?? 0),
+        Large: String(item.size_prices?.Large ?? 15),
+      },
     });
     setIngredientAmounts(Object.fromEntries(item.ingredients.map((ingredient) => [
       ingredient.supply_id,
@@ -139,12 +182,16 @@ export function MenuManager({
         price: Number(form.price),
         estimated_cost: estimatedCost,
         is_available: form.is_available,
+        has_sizes: form.has_sizes && !isNonDrinkCategory(form.category),
+        size_prices: Object.fromEntries(
+          Object.entries(form.size_prices).map(([size, price]) => [size, Number(price)])
+        ),
       };
       const saveResult = editingId
         ? await supabase.from('menu_items').update(values).eq('id', editingId)
-          .select('id, name, category, price, estimated_cost, is_available').single()
+          .select('id, name, category, price, estimated_cost, is_available, has_sizes, size_prices').single()
         : await supabase.from('menu_items').insert(values)
-          .select('id, name, category, price, estimated_cost, is_available').single();
+          .select('id, name, category, price, estimated_cost, is_available, has_sizes, size_prices').single();
       if (saveResult.error) throw saveResult.error;
 
       const itemId = saveResult.data.id;
@@ -288,7 +335,7 @@ export function MenuManager({
       const ownerId = await getOwnerId();
       const draft = ruleDrafts[modifierName] ?? {
         supply_id: rules.find((rule) => rule.modifier_name === modifierName)?.supply_id ?? '',
-        quantity_used: String(rules.find((rule) => rule.modifier_name === modifierName)?.quantity_used ?? ''),
+        quantity_used: String(rules.find((rule) => rule.modifier_name === modifierName)?.quantity_used ?? (modifierName.endsWith('Cup') ? 1 : '')),
       };
       const actionType = ruleActions[modifierName]
         ?? rules.find((rule) => rule.modifier_name === modifierName)?.action_type
@@ -349,7 +396,11 @@ export function MenuManager({
               <input required value={form.name} onChange={(event) => setForm((current) => ({ ...current, name: event.target.value }))} disabled={demo || isSaving} className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2" />
             </label>
             <label className="text-sm text-slate-700">Category
-              <input required value={form.category} onChange={(event) => setForm((current) => ({ ...current, category: event.target.value }))} disabled={demo || isSaving} className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2" />
+              <input required value={form.category} onChange={(event) => setForm((current) => ({
+                ...current,
+                category: event.target.value,
+                has_sizes: isNonDrinkCategory(event.target.value) ? false : current.has_sizes,
+              }))} disabled={demo || isSaving} className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2" />
             </label>
             <label className="text-sm text-slate-700">Price (฿)
               <input required type="number" min="0.01" step="0.01" value={form.price} onChange={(event) => setForm((current) => ({ ...current, price: event.target.value }))} disabled={demo || isSaving} className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2" />
@@ -357,6 +408,25 @@ export function MenuManager({
             <label className="text-sm text-slate-700">Ingredient cost (฿)
               <input required type="number" min="0" step="0.01" value={form.estimated_cost} onChange={(event) => setForm((current) => ({ ...current, estimated_cost: event.target.value }))} disabled={demo || isSaving || Object.values(ingredientAmounts).some((amount) => Number(amount) > 0)} className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2" />
             </label>
+          </div>
+          <div className="rounded-xl bg-slate-50 p-4">
+            <label className="inline-flex items-center gap-2 text-sm font-semibold text-slate-800">
+              <input type="checkbox" checked={form.has_sizes} onChange={(event) => setForm((current) => ({ ...current, has_sizes: event.target.checked }))} disabled={demo || isSaving || isNonDrinkCategory(form.category)} />
+              Enable drink sizes (Small / Medium / Large)
+            </label>
+            {isNonDrinkCategory(form.category) && <p className="mt-1 text-xs text-slate-500">Food, pastry, bakery, dessert, and snack items do not use drink sizes.</p>}
+            {form.has_sizes && !isNonDrinkCategory(form.category) && (
+              <div className="mt-3 grid gap-3 sm:grid-cols-3">
+                {(['Small', 'Medium', 'Large'] as const).map((size) => (
+                  <label key={size} className="text-sm text-slate-700">{size} price adjustment (฿)
+                    <input type="number" step="0.01" value={form.size_prices[size]} onChange={(event) => setForm((current) => ({
+                      ...current,
+                      size_prices: { ...current.size_prices, [size]: event.target.value },
+                    }))} disabled={demo || isSaving} className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2" />
+                  </label>
+                ))}
+              </div>
+            )}
           </div>
           <label className="inline-flex items-center gap-2 text-sm text-slate-700">
             <input type="checkbox" checked={form.is_available} onChange={(event) => setForm((current) => ({ ...current, is_available: event.target.checked }))} disabled={demo || isSaving} />
@@ -414,7 +484,10 @@ export function MenuManager({
           <tbody>
             {items.map((item) => (
               <tr key={item.id} className="border-t border-slate-200">
-                <td className="px-4 py-3 font-medium">{item.name}</td>
+                <td className="px-4 py-3 font-medium">
+                  {item.name}
+                  {item.has_sizes && <p className="mt-1 text-xs font-normal text-slate-500">S {formatPriceDelta(item.size_prices.Small)} · M {formatPriceDelta(item.size_prices.Medium)} · L {formatPriceDelta(item.size_prices.Large)}</p>}
+                </td>
                 <td className="px-4 py-3">{item.category}</td>
                 <td className="px-4 py-3">฿{Number(item.price).toFixed(2)}</td>
                 {(isAdmin || demo) && <td className="px-4 py-3">฿{Number(item.estimated_cost).toFixed(2)}</td>}
@@ -464,7 +537,7 @@ export function MenuManager({
                   <label className="text-xs text-slate-600">Supply
                     <select value={selectedSupplyId} onChange={(event) => setRuleDrafts((current) => ({
                       ...current,
-                      [modifierName]: { ...current[modifierName], supply_id: event.target.value, quantity_used: current[modifierName]?.quantity_used ?? quantity },
+                      [modifierName]: { ...current[modifierName], supply_id: event.target.value,                       quantity_used: current[modifierName]?.quantity_used ?? (modifierName.endsWith('Cup') ? '1' : quantity) },
                     }))} className="mt-1 w-full rounded-lg border border-slate-300 px-2 py-2 text-sm">
                       <option value="">Not linked</option>
                       {supplies.map((supply) => <option key={supply.id} value={supply.id}>{supply.item_name} ({supply.unit})</option>)}
@@ -472,7 +545,7 @@ export function MenuManager({
                   </label>
                   {actionType === 'add_ingredient' && (
                     <label className="text-xs text-slate-600 sm:col-span-2">Quantity used per modifier
-                      <input type="number" min="0.001" step="0.001" value={quantity} onChange={(event) => setRuleDrafts((current) => ({
+                      <input type="number" min="0.001" step="0.001" value={quantity || (modifierName.endsWith('Cup') ? '1' : '')} onChange={(event) => setRuleDrafts((current) => ({
                         ...current,
                         [modifierName]: { ...current[modifierName], supply_id: current[modifierName]?.supply_id ?? selectedSupplyId, quantity_used: event.target.value },
                       }))} className="mt-1 w-full rounded-lg border border-slate-300 px-2 py-2 text-sm" />

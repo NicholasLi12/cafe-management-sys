@@ -19,6 +19,8 @@ export type OrderMenuItem = {
   category: string;
   price: number;
   estimated_cost: number;
+  has_sizes: boolean;
+  size_prices: Record<'Small' | 'Medium' | 'Large', number>;
 };
 
 const demoTables: CafeTable[] = [
@@ -27,8 +29,8 @@ const demoTables: CafeTable[] = [
   { id: 'demo-table-3', table_number: 'T3', capacity: 2, status: 'reserved' },
 ];
 const demoMenu: OrderMenuItem[] = [
-  { id: 'demo-latte', name: 'Latte', category: 'Coffee', price: 75, estimated_cost: 20 },
-  { id: 'demo-croissant', name: 'Butter Croissant', category: 'Bakery', price: 60, estimated_cost: 24 },
+  { id: 'demo-latte', name: 'Latte', category: 'Coffee', price: 75, estimated_cost: 20, has_sizes: true, size_prices: { Small: -10, Medium: 0, Large: 15 } },
+  { id: 'demo-croissant', name: 'Butter Croissant', category: 'Bakery', price: 60, estimated_cost: 24, has_sizes: false, size_prices: { Small: -10, Medium: 0, Large: 15 } },
 ];
 const statusStyles = {
   available: 'bg-emerald-50 text-emerald-700 border-emerald-200',
@@ -45,6 +47,7 @@ type CartLine = {
 };
 type OrderType = 'dine_in' | 'pickup' | 'online_delivery';
 type ModifierChoices = {
+  size: 'Small' | 'Medium' | 'Large';
   sweetness: string;
   ice: string;
   milk: string;
@@ -53,6 +56,7 @@ type ModifierChoices = {
 };
 
 const defaultModifierChoices: ModifierChoices = {
+  size: 'Medium',
   sweetness: '100%',
   ice: 'Normal',
   milk: 'Regular',
@@ -71,8 +75,13 @@ function isDrink(item: OrderMenuItem) {
   return /coffee|tea|drink|beverage|juice|smoothie|latte|espresso/i.test(item.category);
 }
 
-function getModifiers(choices: ModifierChoices): DrinkModifier[] {
+function getModifiers(choices: ModifierChoices, item: OrderMenuItem): DrinkModifier[] {
   return [
+    ...(item.has_sizes ? [{
+      group: 'Size',
+      option: choices.size,
+      upcharge: Number(item.size_prices?.[choices.size] ?? 0),
+    }] : []),
     { group: 'Sweetness', option: choices.sweetness, upcharge: 0 },
     { group: 'Ice', option: choices.ice, upcharge: 0 },
     { group: 'Milk', option: choices.milk, upcharge: milkUpcharges[choices.milk] ?? 0 },
@@ -142,7 +151,7 @@ export function TableFloor({
 
   const addCustomizedDrink = () => {
     if (!customizingItem) return;
-    addToCart(customizingItem, getModifiers(modifierChoices), modifierChoices.notes);
+    addToCart(customizingItem, getModifiers(modifierChoices, customizingItem), modifierChoices.notes);
     setCustomizingItem(null);
   };
 
@@ -378,7 +387,7 @@ export function TableFloor({
                   {isDrink(item) ? (
                     <div className="mt-3 flex gap-2">
                       <button type="button" disabled={demo || isRecordingOrder} onClick={() => selectMenuItem(item)} className="min-h-11 flex-1 rounded-lg bg-brand-600 px-3 py-2 text-sm font-medium text-white disabled:opacity-50">Customize</button>
-                      <button type="button" disabled={demo || isRecordingOrder} onClick={() => addToCart(item, getModifiers(defaultModifierChoices))} className="min-h-11 rounded-lg border border-slate-300 px-3 py-2 text-sm disabled:opacity-50">Quick Add Default</button>
+                      <button type="button" disabled={demo || isRecordingOrder} onClick={() => addToCart(item, getModifiers(defaultModifierChoices, item))} className="min-h-11 rounded-lg border border-slate-300 px-3 py-2 text-sm disabled:opacity-50">Quick Add Default</button>
                     </div>
                   ) : (
                     <button type="button" disabled={demo || isRecordingOrder} onClick={() => selectMenuItem(item)} className="mt-3 min-h-11 w-full rounded-lg bg-brand-600 px-3 py-2 text-sm font-medium text-white disabled:opacity-50">Add to order</button>
@@ -399,7 +408,7 @@ export function TableFloor({
                     <div className="mt-1 flex flex-wrap gap-1">
                       {line.modifiers.map((modifier, modifierIndex) => (
                         <span key={`${modifier.group}-${modifier.option}-${modifierIndex}`} className="rounded-full bg-slate-100 px-2 py-0.5 text-xs text-slate-600">
-                          {modifier.option}{modifier.upcharge > 0 ? ` +${formatCurrencyTHB(modifier.upcharge)}` : ''}
+                          {modifier.option}{modifier.upcharge !== 0 ? ` ${modifier.upcharge > 0 ? '+' : '−'}${formatCurrencyTHB(Math.abs(modifier.upcharge))}` : ''}
                         </span>
                       ))}
                     </div>
@@ -441,6 +450,29 @@ export function TableFloor({
               </div>
               <button type="button" onClick={() => setCustomizingItem(null)} className="min-h-11 min-w-11 rounded-full bg-slate-100 text-lg text-slate-700" aria-label="Close customization">×</button>
             </div>
+
+            {customizingItem.has_sizes && (
+              <fieldset className="mt-5">
+                <legend className="mb-2 text-sm font-semibold text-slate-800">Size</legend>
+                <div className="flex flex-wrap gap-2">
+                  {(['Small', 'Medium', 'Large'] as const).map((size) => {
+                    const selected = modifierChoices.size === size;
+                    const delta = Number(customizingItem.size_prices?.[size] ?? 0);
+                    return (
+                      <button
+                        key={size}
+                        type="button"
+                        aria-pressed={selected}
+                        onClick={() => setModifierChoices((current) => ({ ...current, size }))}
+                        className={`min-h-11 rounded-full border px-4 py-2 text-sm font-semibold ${selected ? 'border-brand-600 bg-brand-600 text-white' : 'border-slate-300 bg-white text-slate-700'}`}
+                      >
+                        {size}{delta !== 0 ? ` (${delta > 0 ? '+' : '−'}${formatCurrencyTHB(Math.abs(delta))})` : ''}
+                      </button>
+                    );
+                  })}
+                </div>
+              </fieldset>
+            )}
 
             {([
               ['Sweetness', ['0%', '25%', '50%', '75%', '100%'], 'sweetness'],
@@ -497,7 +529,7 @@ export function TableFloor({
             </label>
 
             {(() => {
-              const unitPrice = customizingItem.price + getModifiers(modifierChoices).reduce((sum, modifier) => sum + modifier.upcharge, 0);
+              const unitPrice = customizingItem.price + getModifiers(modifierChoices, customizingItem).reduce((sum, modifier) => sum + modifier.upcharge, 0);
               return (
                 <button type="button" onClick={addCustomizedDrink} className="mt-6 min-h-12 w-full rounded-xl bg-brand-600 px-4 py-3 font-semibold text-white hover:bg-brand-700">
                   Add to Order · {formatCurrencyTHB(unitPrice)}

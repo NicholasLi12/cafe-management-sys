@@ -281,9 +281,9 @@ export function BaristaOrderQueue({
                           <div className="min-w-0 flex-1">
                             <p className="text-lg font-bold leading-tight text-slate-950">{item.name}</p>
                             <div className="mt-2 flex flex-wrap gap-1.5">
-                              {item.modifiers.map((modifier, modifierIndex) => (
-                                <span key={`${modifier.group}-${modifier.option}-${modifierIndex}`} className="rounded-md bg-cyan-100 px-2 py-1 text-xs font-bold text-cyan-950">
-                                  {modifier.group}: {modifier.option}{modifier.upcharge > 0 ? ` (+${formatCurrencyTHB(modifier.upcharge)})` : ''}
+                              {[...item.modifiers].sort((a, b) => Number(b.group === 'Size') - Number(a.group === 'Size')).map((modifier, modifierIndex) => (
+                                <span key={`${modifier.group}-${modifier.option}-${modifierIndex}`} className={modifier.group === 'Size' ? 'rounded-md bg-violet-700 px-3 py-1 text-sm font-black text-white' : 'rounded-md bg-cyan-100 px-2 py-1 text-xs font-bold text-cyan-950'}>
+                                  {modifier.group === 'Size' ? modifier.option : `${modifier.group}: ${modifier.option}`}{modifier.upcharge !== 0 ? ` (${modifier.upcharge > 0 ? '+' : '−'}${formatCurrencyTHB(Math.abs(modifier.upcharge))})` : ''}
                                 </span>
                               ))}
                             </div>

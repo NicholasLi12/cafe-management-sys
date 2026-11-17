@@ -267,9 +267,9 @@ export function OrderHistory({ orders }: { orders: HistoryOrder[] }) {
                                       <p>{item.quantity}× {item.name} <span className="text-slate-500">({formatCurrencyTHB(item.unit_price)} each)</span></p>
                                       {item.modifiers.length > 0 && (
                                         <div className="mt-1 flex flex-wrap gap-1">
-                                          {item.modifiers.map((modifier, modifierIndex) => (
-                                            <span key={`${modifier.group}-${modifier.option}-${modifierIndex}`} className="rounded-full bg-slate-200 px-2 py-0.5 text-xs text-slate-600">
-                                              {modifier.option}{modifier.upcharge > 0 ? ` +${formatCurrencyTHB(modifier.upcharge)}` : ''}
+                                          {[...item.modifiers].sort((a, b) => Number(b.group === 'Size') - Number(a.group === 'Size')).map((modifier, modifierIndex) => (
+                                            <span key={`${modifier.group}-${modifier.option}-${modifierIndex}`} className={modifier.group === 'Size' ? 'rounded-full bg-brand-700 px-3 py-1 text-xs font-bold text-white' : 'rounded-full bg-slate-200 px-2 py-0.5 text-xs text-slate-600'}>
+                                              {modifier.option}{modifier.upcharge !== 0 ? ` ${modifier.upcharge > 0 ? '+' : '−'}${formatCurrencyTHB(Math.abs(modifier.upcharge))}` : ''}
                                             </span>
                                           ))}
                                         </div>

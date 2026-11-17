@@ -23,8 +23,8 @@ export default async function TablesPage() {
     const [tablesResult, menuResult] = await Promise.all([
       supabase.from('cafe_tables').select('id, table_number, capacity, status').eq('owner_id', franchiseId).order('table_number'),
       role === 'admin'
-        ? supabase.from('menu_items').select('id, name, category, price, estimated_cost').eq('owner_id', franchiseId).eq('is_available', true).order('name')
-        : supabase.from('menu_items').select('id, name, category, price').eq('owner_id', franchiseId).eq('is_available', true).order('name'),
+        ? supabase.from('menu_items').select('id, name, category, price, estimated_cost, has_sizes, size_prices').eq('owner_id', franchiseId).eq('is_available', true).order('name')
+        : supabase.from('menu_items').select('id, name, category, price, has_sizes, size_prices').eq('owner_id', franchiseId).eq('is_available', true).order('name'),
     ]);
     const loadError = tablesResult.error ?? menuResult.error;
     if (loadError) return <DashboardShell mode="live"><p role="alert" className="rounded-xl bg-rose-50 p-4 text-rose-700">Could not load operations data: {loadError.message}</p></DashboardShell>;
@@ -33,6 +33,8 @@ export default async function TablesPage() {
       ...item,
       price: Number(item.price),
       estimated_cost: 'estimated_cost' in item ? Number(item.estimated_cost) : 0,
+      has_sizes: item.has_sizes,
+      size_prices: item.size_prices,
     })) as OrderMenuItem[];
   }
 
