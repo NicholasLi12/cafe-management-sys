@@ -1,13 +1,16 @@
 import Link from 'next/link';
 import { SignOutButton } from '@/components/sign-out-button';
 
-const navItems = [
-  { href: '/dashboard', label: 'Summary' },
+const sharedNavItems = [
   { href: '/dashboard/tables', label: 'Tables' },
   { href: '/dashboard/barista', label: 'Barista Queue' },
   { href: '/dashboard/orders', label: 'Orders' },
   { href: '/dashboard/menu', label: 'Menu' },
   { href: '/dashboard/inventory', label: 'Inventory' },
+] as const;
+
+const adminNavItems = [
+  { href: '/dashboard', label: 'Summary' },
   { href: '/dashboard/employees', label: 'Employees' },
   { href: '/dashboard/analytics', label: 'Analytics' },
 ] as const;
@@ -29,14 +32,11 @@ export function DashboardShell({
 }: DashboardShellProps) {
   const statusLabel = mode === 'live' ? 'Live data' : 'Demo mode';
   const normalizedRole = role?.toLowerCase();
-  const visibleNavItems: ReadonlyArray<{ href: (typeof navItems)[number]['href']; label: string }> = normalizedRole === 'barista'
-    ? [
-      ...navItems.filter((item) => item.href !== '/dashboard' && item.href !== '/dashboard/employees'),
-      { href: '/dashboard/employees', label: 'My Shifts' },
-    ]
-    : normalizedRole === 'admin'
-      ? navItems
-      : navItems.filter((item) => item.href !== '/dashboard/analytics');
+  const visibleNavItems = normalizedRole === 'admin'
+    ? [...adminNavItems, ...sharedNavItems] as const
+    : normalizedRole === 'barista'
+      ? [...sharedNavItems, { href: '/dashboard/employees', label: 'My Shifts' }] as const
+      : sharedNavItems;
   const roleLabel = normalizedRole === 'barista' ? 'Barista' : normalizedRole === 'admin' ? 'Admin' : null;
 
   return (
