@@ -13,6 +13,7 @@ import {
   Users,
   Utensils,
 } from 'lucide-react';
+import { BrandLogo } from '@/components/brand-logo';
 import { BranchSwitcher } from '@/components/branch-switcher';
 import { SignOutButton } from '@/components/sign-out-button';
 
@@ -87,7 +88,9 @@ export function DashboardShell({
     <div className="min-h-screen bg-slate-50">
       <aside className="fixed inset-y-0 left-0 z-30 hidden w-64 flex-col border-r border-white/10 bg-slate-950 text-slate-100 lg:flex">
         <div className="px-4 pb-5 pt-6">
-          <p className="px-2 text-[11px] font-semibold uppercase tracking-[0.2em] text-orange-300">CafeOps</p>
+          <div className="px-2">
+            <BrandLogo tone="dark" />
+          </div>
           <div className="mt-4 rounded-xl border border-white/10 bg-white/[0.04] p-3">
             <div className="flex items-start justify-between gap-2">
               <div className="min-w-0">
