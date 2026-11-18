@@ -20,7 +20,7 @@ export default async function BaristaQueuePage() {
   const franchiseId = profile.franchise_owner_id ?? user.id;
   const { data: orders, error: ordersError } = await supabase
     .from('orders')
-    .select('id, order_type, platform_name, created_at, table_id, prep_status')
+    .select('id, order_number, order_type, platform_name, created_at, table_id, prep_status')
     .eq('owner_id', franchiseId)
     .in('prep_status', ['new', 'preparing', 'ready'])
     .order('created_at', { ascending: true });
@@ -71,6 +71,7 @@ export default async function BaristaQueuePage() {
 
   const tickets = orderRows.map((order) => ({
     id: order.id,
+    order_number: order.order_number,
     order_type: order.order_type,
     platform_name: order.platform_name,
     created_at: order.created_at ?? new Date(0).toISOString(),

@@ -23,6 +23,7 @@ export default async function OrdersPage() {
     .from('orders')
     .select(`
       id,
+      order_number,
       order_type,
       platform_name,
       external_order_ref,
@@ -84,6 +85,7 @@ export default async function OrdersPage() {
 
   const orders = orderRows.map((order) => ({
     id: order.id,
+    order_number: order.order_number,
     order_type: order.order_type,
     platform_name: order.platform_name,
     external_order_ref: order.external_order_ref,
@@ -111,7 +113,7 @@ export default async function OrdersPage() {
           <h1 className="mt-2 text-3xl font-bold text-slate-900">Order History</h1>
           <p className="mt-2 text-sm text-slate-600">Search and review paid orders for your cafe.</p>
         </div>
-        <OrderHistory orders={orders} />
+        <OrderHistory orders={orders} branchName={profile.cafe_name} />
       </div>
     </DashboardShell>
   );

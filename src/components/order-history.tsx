@@ -2,11 +2,14 @@
 
 import { Fragment, useMemo, useState } from 'react';
 import { APP_TIMEZONE, formatCurrencyTHB } from '@/lib/currency';
+import { formatOrderNumber } from '@/lib/orders';
+import { ReceiptModal, type ReceiptOrder } from '@/components/receipt-modal';
 
 export type OrderModifier = { group: string; option: string; upcharge: number };
 
 export type HistoryOrder = {
   id: string;
+  order_number: number | null;
   order_type: string;
   platform_name: string | null;
   external_order_ref: string | null;
@@ -64,7 +67,7 @@ function formatOrderDate(value: string) {
   }).format(new Date(value));
 }
 
-export function OrderHistory({ orders }: { orders: HistoryOrder[] }) {
+export function OrderHistory({ orders, branchName }: { orders: HistoryOrder[]; branchName: string }) {
   const [search, setSearch] = useState('');
   const [dateFilter, setDateFilter] = useState<DateFilter>('all');
   const [specificDate, setSpecificDate] = useState('');
@@ -73,6 +76,7 @@ export function OrderHistory({ orders }: { orders: HistoryOrder[] }) {
   const [sortMode, setSortMode] = useState<SortMode>('newest');
   const [expandedOrders, setExpandedOrders] = useState<Set<string>>(() => new Set());
   const [copyError, setCopyError] = useState('');
+  const [receiptOrder, setReceiptOrder] = useState<ReceiptOrder | null>(null);
 
   const filteredOrders = useMemo(() => {
     const query = search.trim().toLowerCase();
@@ -92,6 +96,7 @@ export function OrderHistory({ orders }: { orders: HistoryOrder[] }) {
 
       const normalizedQuery = query.replace(/^#/, '');
       const searchableText = [
+        formatOrderNumber(order.order_number),
         order.id,
         order.id.replaceAll('-', ''),
         order.id.replaceAll('-', '').slice(0, 8),
@@ -216,12 +221,14 @@ export function OrderHistory({ orders }: { orders: HistoryOrder[] }) {
           <table className="min-w-full text-left text-sm text-slate-700">
             <thead className="bg-slate-50 text-xs uppercase tracking-wide text-slate-500">
               <tr>
+                <th className="px-4 py-3">Ticket</th>
                 <th className="px-4 py-3">Date & Time</th>
                 <th className="px-4 py-3">Payment / Order ID</th>
                 <th className="px-4 py-3">Type & Details</th>
                 <th className="px-4 py-3">Payment Method</th>
                 <th className="px-4 py-3">Items</th>
                 <th className="px-4 py-3 text-right">Total (฿)</th>
+                <th className="px-4 py-3">Receipt</th>
               </tr>
             </thead>
             <tbody>
@@ -232,6 +239,7 @@ export function OrderHistory({ orders }: { orders: HistoryOrder[] }) {
                 return (
                   <Fragment key={order.id}>
                     <tr className="border-t border-slate-200 align-top">
+                      <td className="px-4 py-3"><span className="rounded-lg bg-brand-50 px-2.5 py-1 font-mono font-bold text-brand-800">{formatOrderNumber(order.order_number)}</span></td>
                       <td className="whitespace-nowrap px-4 py-3">{formatOrderDate(order.created_at)}</td>
                       <td className="px-4 py-3">
                         <div className="flex items-center gap-2">
@@ -253,10 +261,27 @@ export function OrderHistory({ orders }: { orders: HistoryOrder[] }) {
                         )}
                       </td>
                       <td className="whitespace-nowrap px-4 py-3 text-right font-semibold text-slate-900">{formatCurrencyTHB(order.total_amount)}</td>
+                      <td className="px-4 py-3">
+                        <button
+                          type="button"
+                          onClick={() => setReceiptOrder({
+                            order_number: order.order_number,
+                            created_at: order.created_at,
+                            order_type: getOrderTypeLabel(order),
+                            table_label: null,
+                            payment_status: `Paid · ${getPaymentLabel(order.payment_method)}`,
+                            total_amount: order.total_amount,
+                            items: order.items,
+                          })}
+                          className="whitespace-nowrap rounded-lg border border-slate-300 px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50"
+                        >
+                          Receipt
+                        </button>
+                      </td>
                     </tr>
                     {expanded && (
                       <tr className="border-t border-slate-100 bg-slate-50">
-                        <td colSpan={6} className="px-4 py-4">
+                        <td colSpan={8} className="px-4 py-4">
                           <div className="grid gap-4 md:grid-cols-[1fr_auto]">
                             <div>
                               <h3 className="mb-2 font-semibold text-slate-800">Receipt items</h3>
@@ -297,6 +322,7 @@ export function OrderHistory({ orders }: { orders: HistoryOrder[] }) {
           </table>
         </div>
       )}
+      {receiptOrder && <ReceiptModal branchName={branchName} order={receiptOrder} onClose={() => setReceiptOrder(null)} />}
     </div>
   );
 }

@@ -5,6 +5,10 @@ import { useRouter } from 'next/navigation';
 import { createSupabaseClient } from '@/lib/supabase/client';
 import { getFranchiseContext } from '@/lib/supabase/franchise-client';
 import { formatCurrencyTHB } from '@/lib/currency';
+import { formatOrderNumber } from '@/lib/orders';
+import { ReceiptModal, type ReceiptOrder } from '@/components/receipt-modal';
+
+type TableReceipt = ReceiptOrder & { id: string };
 
 export type CafeTable = {
   id: string;
@@ -122,14 +126,18 @@ export function TableFloor({
   tables,
   menuItems,
   drinkModifiers,
+  recentOrders = [],
   demo = false,
   isAdmin = false,
+  branchName = 'Cafe',
 }: {
   tables: CafeTable[];
   menuItems: OrderMenuItem[];
   drinkModifiers: PosDrinkModifier[];
+  recentOrders?: TableReceipt[];
   demo?: boolean;
   isAdmin?: boolean;
+  branchName?: string;
 }) {
   const router = useRouter();
   const [tableRows, setTableRows] = useState(demo && !tables.length ? demoTables : tables);
@@ -148,6 +156,9 @@ export function TableFloor({
   const [busyTableId, setBusyTableId] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState('');
   const [successMessage, setSuccessMessage] = useState('');
+  const [recentOrderReceipts, setRecentOrderReceipts] = useState<TableReceipt[]>(recentOrders);
+  const [lastReceipt, setLastReceipt] = useState<ReceiptOrder | null>(recentOrders[0] ?? null);
+  const [receiptToShow, setReceiptToShow] = useState<ReceiptOrder | null>(null);
 
   const addToCart = (item: OrderMenuItem, modifiers: DrinkModifier[] = [], notes = '') => {
     const unitPrice = item.price + modifiers.reduce((sum, modifier) => sum + modifier.upcharge, 0);
@@ -318,12 +329,43 @@ export function TableFloor({
       });
       if (orderError) throw orderError;
       if (!orderId) throw new Error('Order was not created.');
+      const { data: savedOrder, error: savedOrderError } = await supabase
+        .from('orders')
+        .select('order_number, created_at, total_amount')
+        .eq('id', orderId)
+        .single();
+      const selectedTable = tableId ? tableRows.find((table) => table.id === tableId) : null;
+      const paymentMethod = String(formData.get('payment_method'));
+      const receipt: ReceiptOrder = {
+        order_number: savedOrderError ? null : savedOrder.order_number,
+        created_at: savedOrderError ? new Date().toISOString() : savedOrder.created_at ?? new Date().toISOString(),
+        order_type: orderType === 'dine_in' ? 'Dine-in' : orderType === 'online_delivery' ? `Delivery · ${platformName}` : 'Takeaway / pickup',
+        table_label: selectedTable?.table_number ?? null,
+        payment_status: `Paid · ${paymentMethod === 'qr_transfer' ? 'QR Transfer' : paymentMethod.charAt(0).toUpperCase() + paymentMethod.slice(1)}`,
+        total_amount: savedOrderError ? total : Number(savedOrder.total_amount),
+        items: items.map((item) => ({
+          name: orderMenu.find((menuItem) => menuItem.id === item.menu_item_id)?.name ?? 'Menu item',
+          quantity: item.quantity,
+          unit_price: item.unit_price,
+          subtotal: item.unit_price * item.quantity,
+          modifiers: item.modifiers,
+          notes: item.notes || null,
+        })),
+      };
+      setLastReceipt(receipt);
+      setRecentOrderReceipts((current) => [
+        { ...receipt, id: orderId },
+        ...current.filter((recentOrder) => recentOrder.id !== orderId),
+      ].slice(0, 10));
       if (tableId) {
         setTableRows((current) => current.map((table) => table.id === tableId ? { ...table, status: 'occupied' } : table));
       }
 
       setCart([]);
-      setSuccessMessage(`Paid order recorded successfully (${orderId.slice(0, 8)}).`);
+      setSuccessMessage(`Paid order recorded successfully (${formatOrderNumber(receipt.order_number)}).`);
+      if (savedOrderError) {
+        setErrorMessage(`Order was recorded, but ticket details could not be loaded: ${savedOrderError.message}`);
+      }
       router.refresh();
     } catch (error) {
       setErrorMessage(`Could not record paid order: ${getErrorMessage(error)}`);
@@ -341,6 +383,34 @@ export function TableFloor({
       {demo && <p className="rounded-xl border border-brand-100 bg-brand-50 px-4 py-3 text-sm text-brand-800">Demo tables and menu are read-only. Sign in to manage tables or record orders.</p>}
       {errorMessage && <p role="alert" className="rounded-xl bg-rose-50 px-4 py-3 text-sm text-rose-700">{errorMessage}</p>}
       {successMessage && <p role="status" className="rounded-xl bg-emerald-50 px-4 py-3 text-sm text-emerald-700">{successMessage}</p>}
+      {lastReceipt && (
+        <section className="flex flex-wrap items-center justify-between gap-4 rounded-2xl border border-brand-200 bg-brand-50 p-4">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-wide text-brand-700">Last paid order</p>
+            <h2 className="mt-1 text-xl font-black text-slate-900">
+              {formatOrderNumber(lastReceipt.order_number)}
+              <span className="ml-2 text-sm font-medium">{lastReceipt.order_type}{lastReceipt.table_label ? ` · ${lastReceipt.table_label}` : ''}</span>
+            </h2>
+          </div>
+          <button type="button" onClick={() => setReceiptToShow(lastReceipt)} className="rounded-lg bg-brand-600 px-4 py-2 font-semibold text-white hover:bg-brand-700">Print Receipt</button>
+        </section>
+      )}
+      {recentOrderReceipts.length > 0 && (
+        <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-soft">
+          <h2 className="font-semibold text-slate-900">Recent checkouts</h2>
+          <ul className="mt-3 divide-y divide-slate-100">
+            {recentOrderReceipts.map((order) => (
+              <li key={order.id} className="flex flex-wrap items-center justify-between gap-3 py-3 first:pt-0 last:pb-0">
+                <div>
+                  <p className="font-mono font-bold text-slate-900">{formatOrderNumber(order.order_number)} <span className="font-sans font-medium">{order.order_type}{order.table_label ? ` · ${order.table_label}` : ''}</span></p>
+                  <p className="text-sm text-slate-500">{formatCurrencyTHB(order.total_amount)}</p>
+                </div>
+                <button type="button" onClick={() => setReceiptToShow(order)} className="rounded-lg border border-slate-300 px-3 py-1.5 text-sm font-semibold text-slate-700 hover:bg-slate-50">Receipt</button>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
 
       {(isAdmin || demo) && <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-soft">
         <h2 className="text-lg font-semibold text-slate-900">Add Table</h2>
@@ -419,7 +489,12 @@ export function TableFloor({
           </div>
 
           <div className="space-y-3">
-            <h3 className="text-sm font-medium text-slate-700">Order items</h3>
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <h3 className="text-sm font-medium text-slate-700">Checkout summary · Order items</h3>
+              {cart.length
+                ? <span className="rounded-lg bg-slate-100 px-3 py-1 text-xs font-medium text-slate-600">Ticket assigned when paid</span>
+                : lastReceipt && <span className="rounded-lg bg-slate-900 px-3 py-1 font-mono text-sm font-bold text-white">{formatOrderNumber(lastReceipt.order_number)}</span>}
+            </div>
             {cart.map((line, index) => {
               const item = orderMenu.find((menuItem) => menuItem.id === line.menu_item_id);
               return (
@@ -581,6 +656,7 @@ export function TableFloor({
           </section>
         </div>
       )}
+      {receiptToShow && <ReceiptModal branchName={branchName} order={receiptToShow} onClose={() => setReceiptToShow(null)} />}
 
       <section>
         <h2 className="mb-4 text-lg font-semibold text-slate-900">Table Status</h2>

@@ -3,12 +3,14 @@
 import { useCallback, useEffect, useState } from 'react';
 import { createSupabaseClient } from '@/lib/supabase/client';
 import { formatCurrencyTHB } from '@/lib/currency';
+import { formatOrderNumber } from '@/lib/orders';
 
 type PrepStatus = 'new' | 'preparing' | 'ready' | 'completed';
 type OrderModifier = { group: string; option: string; upcharge: number };
 
 export type BaristaOrderTicket = {
   id: string;
+  order_number: number | null;
   order_type: string;
   platform_name: string;
   created_at: string;
@@ -50,7 +52,7 @@ async function loadActiveTickets(franchiseId: string): Promise<BaristaOrderTicke
   const supabase = createSupabaseClient();
   const { data: orders, error: ordersError } = await supabase
     .from('orders')
-    .select('id, order_type, platform_name, created_at, table_id, prep_status')
+    .select('id, order_number, order_type, platform_name, created_at, table_id, prep_status')
     .eq('owner_id', franchiseId)
     .in('prep_status', activeStatuses)
     .order('created_at', { ascending: true });
@@ -90,6 +92,7 @@ async function loadActiveTickets(franchiseId: string): Promise<BaristaOrderTicke
     if (!isPrepStatus(order.prep_status) || !activeStatuses.includes(order.prep_status)) return [];
     return [{
       id: order.id,
+      order_number: order.order_number,
       order_type: order.order_type,
       platform_name: order.platform_name ?? 'In-House',
       created_at: order.created_at ?? new Date(0).toISOString(),
@@ -257,6 +260,7 @@ export function BaristaOrderQueue({
               <article key={ticket.id} className={`overflow-hidden rounded-2xl border-2 bg-white shadow-lg ${statusStyle(ticket.prep_status)}`}>
                 <div className="flex items-start justify-between gap-3 bg-slate-950 px-5 py-4 text-white">
                   <div className="min-w-0">
+                    <p className="text-lg font-black tracking-wide text-amber-300">{formatOrderNumber(ticket.order_number)}</p>
                     <p className="text-xs font-semibold uppercase tracking-wider text-slate-300">Order #{ticket.id.replaceAll('-', '').slice(0, 8).toUpperCase()}</p>
                     <h2 className="mt-1 text-xl font-bold">{getOrderType(ticket)}</h2>
                   </div>
