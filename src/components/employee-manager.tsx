@@ -76,6 +76,10 @@ export function EmployeeManager({
     setRows(demo && !employees.length ? demoEmployees : employees);
   }, [demo, employees]);
 
+  useEffect(() => {
+    if (!isHQOwner) setForm((current) => ({ ...current, role: 'Barista' }));
+  }, [isHQOwner]);
+
   const handleCreate = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     setErrorMessage('');
@@ -87,6 +91,7 @@ export function EmployeeManager({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           ...form,
+          role: isHQOwner ? form.role : 'Barista',
           hourly_rate: Number(form.hourly_rate),
           hours_worked: form.employment_type === 'part_time' ? Number(form.hours_worked) : 0,
           email: form.email.trim().toLowerCase(),
@@ -264,7 +269,7 @@ export function EmployeeManager({
       {errorMessage && <p role="alert" className="rounded-xl bg-rose-50 px-4 py-3 text-sm text-rose-700">{errorMessage}</p>}
       {successMessage && <p role="status" className="rounded-xl bg-emerald-50 px-4 py-3 text-sm text-emerald-700">{successMessage}</p>}
 
-      {(isHQOwner || demo) && (
+      {(isAdmin || demo) && (
         <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-soft">
           <h2 className="text-lg font-semibold text-slate-900">Add Team Member</h2>
           <form onSubmit={handleCreate} className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
@@ -274,7 +279,7 @@ export function EmployeeManager({
             <label className="text-sm text-slate-700">Role
               <select value={form.role} onChange={(event) => setForm((current) => ({ ...current, role: event.target.value as EmployeeForm['role'] }))} disabled={demo || isSaving} className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2">
                 <option value="Barista">Barista</option>
-                <option value="Admin">Admin</option>
+                {isHQOwner && <option value="Admin">Admin</option>}
               </select>
             </label>
             <label className="text-sm text-slate-700">Email

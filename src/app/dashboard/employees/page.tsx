@@ -26,13 +26,14 @@ export default async function EmployeesPage() {
     cafeName = profile.cafe_name;
     ownerName = profile.owner_name;
     franchiseId = profile.franchise_owner_id ?? user.id;
-    const { data: branch, error: branchError } = await supabase
+    const { data: ownedBranch, error: branchError } = await supabase
       .from('franchise_branches')
-      .select('owner_user_id')
-      .eq('id', franchiseId)
+      .select('id')
+      .eq('owner_user_id', user.id)
+      .limit(1)
       .maybeSingle();
     if (branchError) return <DashboardShell mode="live"><p role="alert" className="rounded-xl bg-rose-50 p-4 text-rose-700">Could not verify branch ownership: {branchError.message}</p></DashboardShell>;
-    isHQOwner = branch?.owner_user_id === user.id;
+    isHQOwner = !!ownedBranch;
     let employeesQuery = supabase.from('employees')
       .select('id, full_name, role, email, user_id, hourly_rate, phone, is_active, hired_date, employment_type, hours_worked, salary_paid, last_paid_at')
       .eq('franchise_owner_id', franchiseId);

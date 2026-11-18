@@ -38,13 +38,14 @@ async function getAdminRequestContext() {
   if (!profile.franchise_owner_id) {
     return { response: NextResponse.json({ error: 'No active branch is assigned to this account.' }, { status: 403 }) };
   }
-  const { data: branch, error: branchError } = await supabase
+  const { data: ownedBranch, error: branchError } = await supabase
     .from('franchise_branches')
-    .select('owner_user_id')
-    .eq('id', profile.franchise_owner_id)
-    .single();
+    .select('id')
+    .eq('owner_user_id', user.id)
+    .limit(1)
+    .maybeSingle();
   if (branchError) return { response: NextResponse.json({ error: branchError.message }, { status: 403 }) };
-  return { supabase, user, profile, isHQOwner: branch.owner_user_id === user.id };
+  return { supabase, user, profile, isHQOwner: !!ownedBranch };
 }
 
 export async function POST(request: Request) {
@@ -85,8 +86,8 @@ export async function POST(request: Request) {
 
   const context = await getAdminRequestContext();
   if ('response' in context) return context.response;
-  if (!context.isHQOwner) {
-    return NextResponse.json({ error: 'Only the HQ Owner can create new employee accounts.' }, { status: 403 });
+  if (role === 'Admin' && !context.isHQOwner) {
+    return NextResponse.json({ error: 'Only the HQ Owner can create Admin accounts' }, { status: 403 });
   }
 
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -187,7 +188,7 @@ export async function PATCH(request: Request) {
   const context = await getAdminRequestContext();
   if ('response' in context) return context.response;
   if (body.role === 'Admin' && !context.isHQOwner) {
-    return NextResponse.json({ error: 'Only the HQ Owner can promote employees to Admin.' }, { status: 403 });
+    return NextResponse.json({ error: 'Only the HQ Owner can promote employees to Admin' }, { status: 403 });
   }
   const { error } = await context.supabase.rpc('update_franchise_employee_role', {
     p_employee_id: body.employee_id,
