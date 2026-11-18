@@ -56,10 +56,12 @@ export function EmployeeManager({
   employees,
   demo = false,
   isAdmin = false,
+  isHQOwner = false,
 }: {
   employees: Employee[];
   demo?: boolean;
   isAdmin?: boolean;
+  isHQOwner?: boolean;
 }) {
   const router = useRouter();
   const [rows, setRows] = useState(demo && !employees.length ? demoEmployees : employees);
@@ -262,7 +264,7 @@ export function EmployeeManager({
       {errorMessage && <p role="alert" className="rounded-xl bg-rose-50 px-4 py-3 text-sm text-rose-700">{errorMessage}</p>}
       {successMessage && <p role="status" className="rounded-xl bg-emerald-50 px-4 py-3 text-sm text-emerald-700">{successMessage}</p>}
 
-      {(isAdmin || demo) && (
+      {(isHQOwner || demo) && (
         <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-soft">
           <h2 className="text-lg font-semibold text-slate-900">Add Team Member</h2>
           <form onSubmit={handleCreate} className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
@@ -449,16 +451,18 @@ export function EmployeeManager({
                 {isAdmin && !demo && (
                   <td className="px-4 py-3">
                     <div className="flex flex-wrap items-center gap-2">
-                      <select
-                        aria-label={`Role for ${employee.full_name}`}
-                        value={employee.role === 'Admin' ? 'Admin' : 'Barista'}
-                        disabled={busyId === employee.id}
-                        onChange={(event) => changeRole(employee, event.target.value as 'Admin' | 'Barista')}
-                        className="rounded-lg border border-slate-300 px-2 py-1"
-                      >
-                        <option value="Barista">Barista</option>
-                        <option value="Admin">Admin</option>
-                      </select>
+                      {isHQOwner && (
+                        <select
+                          aria-label={`Role for ${employee.full_name}`}
+                          value={employee.role === 'Admin' ? 'Admin' : 'Barista'}
+                          disabled={busyId === employee.id}
+                          onChange={(event) => changeRole(employee, event.target.value as 'Admin' | 'Barista')}
+                          className="rounded-lg border border-slate-300 px-2 py-1"
+                        >
+                          <option value="Barista">Barista</option>
+                          <option value="Admin">Admin</option>
+                        </select>
+                      )}
                       <button type="button" disabled={busyId === employee.id} onClick={() => toggleActive(employee)} className="rounded-lg border border-slate-300 px-2 py-1 text-xs disabled:opacity-50">
                         {employee.is_active ? 'Deactivate' : 'Activate'}
                       </button>

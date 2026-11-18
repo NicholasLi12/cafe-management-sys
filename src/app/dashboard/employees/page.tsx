@@ -18,6 +18,7 @@ export default async function EmployeesPage() {
   let role: 'admin' | 'barista' | null = user ? 'admin' : null;
   let currentEmployee: Employee | null = null;
   let activeShift: { id: string; clock_in: string } | null = null;
+  let isHQOwner = false;
   if (user) {
     if (profileError) return <DashboardShell mode="live"><p role="alert" className="rounded-xl bg-rose-50 p-4 text-rose-700">Could not load your profile: {profileError.message}</p></DashboardShell>;
     if (!profile) return <DashboardShell mode="live"><p role="alert" className="rounded-xl bg-rose-50 p-4 text-rose-700">No profile was found for this account.</p></DashboardShell>;
@@ -25,6 +26,13 @@ export default async function EmployeesPage() {
     cafeName = profile.cafe_name;
     ownerName = profile.owner_name;
     franchiseId = profile.franchise_owner_id ?? user.id;
+    const { data: branch, error: branchError } = await supabase
+      .from('franchise_branches')
+      .select('owner_user_id')
+      .eq('id', franchiseId)
+      .maybeSingle();
+    if (branchError) return <DashboardShell mode="live"><p role="alert" className="rounded-xl bg-rose-50 p-4 text-rose-700">Could not verify branch ownership: {branchError.message}</p></DashboardShell>;
+    isHQOwner = branch?.owner_user_id === user.id;
     let employeesQuery = supabase.from('employees')
       .select('id, full_name, role, email, user_id, hourly_rate, phone, is_active, hired_date, employment_type, hours_worked, salary_paid, last_paid_at')
       .eq('franchise_owner_id', franchiseId);
@@ -73,7 +81,7 @@ export default async function EmployeesPage() {
           activeShift={activeShift}
         />
         <ShiftLogs shifts={shifts} isAdmin={role === 'admin'} />
-        {role !== 'barista' && <EmployeeManager employees={employees} demo={!user} isAdmin={!!user} />}
+        {role !== 'barista' && <EmployeeManager employees={employees} demo={!user} isAdmin={!!user} isHQOwner={isHQOwner} />}
       </div>
     </DashboardShell>
   );
