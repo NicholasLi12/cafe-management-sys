@@ -4,12 +4,14 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { createSupabaseClient } from '@/lib/supabase/client';
 
-type Branch = { id: string; branch_name: string };
+type Branch = { id: string; branch_name: string; owner_user_id: string };
 
 export function BranchSwitcher({ instanceId }: { instanceId: string }) {
   const router = useRouter();
   const [branches, setBranches] = useState<Branch[]>([]);
+  const [hasHQAccess, setHasHQAccess] = useState(false);
   const [activeBranchId, setActiveBranchId] = useState('');
+  const [currentUserId, setCurrentUserId] = useState('');
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [isManaging, setIsManaging] = useState(false);
@@ -39,12 +41,18 @@ export function BranchSwitcher({ instanceId }: { instanceId: string }) {
 
         const branchIds = membershipResult.data.map((membership) => membership.branch_id);
         const branchResult = branchIds.length
-          ? await supabase.from('franchise_branches').select('id, branch_name').in('id', branchIds).order('branch_name')
+          ? await supabase.from('franchise_branches')
+            .select('id, branch_name, owner_user_id')
+            .in('id', branchIds)
+            .eq('owner_user_id', user.id)
+            .order('branch_name')
           : { data: [], error: null };
         if (branchResult.error) throw branchResult.error;
         if (isMounted) {
           setBranches(branchResult.data ?? []);
+          setHasHQAccess((branchResult.data ?? []).length > 0);
           setActiveBranchId(profileResult.data.franchise_owner_id ?? '');
+          setCurrentUserId(user.id);
         }
       } catch (error) {
         if (isMounted) setErrorMessage(error instanceof Error ? error.message : 'Could not load franchise branches.');
@@ -85,7 +93,7 @@ export function BranchSwitcher({ instanceId }: { instanceId: string }) {
       });
       if (error) throw error;
       if (typeof data !== 'string') throw new Error('Branch creation returned no branch ID.');
-      setBranches((current) => [...current.filter((branch) => branch.id !== data), { id: data, branch_name: name }]
+      setBranches((current) => [...current.filter((branch) => branch.id !== data), { id: data, branch_name: name, owner_user_id: currentUserId }]
         .sort((a, b) => a.branch_name.localeCompare(b.branch_name)));
       setActiveBranchId(data);
       setBranchName('');
@@ -141,6 +149,8 @@ export function BranchSwitcher({ instanceId }: { instanceId: string }) {
       setIsSaving(false);
     }
   };
+
+  if (!hasHQAccess) return null;
 
   return (
     <div className="mt-4 space-y-2">
