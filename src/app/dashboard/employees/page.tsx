@@ -75,7 +75,8 @@ export default async function EmployeesPage() {
       <div className="space-y-6">
         <div>
           <p className="text-sm font-semibold uppercase tracking-[0.2em] text-brand-600">Team</p>
-          <h1 className="mt-2 text-3xl font-bold text-slate-900">{role === 'barista' ? 'My Shift Time' : 'Employee Directory'}</h1>
+          <h1 className="mt-2 text-2xl font-semibold tracking-tight text-slate-900">{role === 'barista' ? 'My Shift Time' : 'Employee Directory'}</h1>
+          <p className="mt-1 text-sm text-slate-500">{role === 'barista' ? 'Clock in, manage your shift, and review recent activity.' : 'Manage your cafe team, pay details, and shift activity.'}</p>
         </div>
         <StaffShiftClock
           employee={currentEmployee ? { id: currentEmployee.id, full_name: currentEmployee.full_name } : null}

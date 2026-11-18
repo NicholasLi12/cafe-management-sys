@@ -379,7 +379,7 @@ export function TableFloor({
   }, 0);
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 tabular-nums">
       {demo && <p className="rounded-xl border border-brand-100 bg-brand-50 px-4 py-3 text-sm text-brand-800">Demo tables and menu are read-only. Sign in to manage tables or record orders.</p>}
       {errorMessage && <p role="alert" className="rounded-xl bg-rose-50 px-4 py-3 text-sm text-rose-700">{errorMessage}</p>}
       {successMessage && <p role="status" className="rounded-xl bg-emerald-50 px-4 py-3 text-sm text-emerald-700">{successMessage}</p>}
@@ -387,7 +387,7 @@ export function TableFloor({
         <section className="flex flex-wrap items-center justify-between gap-4 rounded-2xl border border-brand-200 bg-brand-50 p-4">
           <div>
             <p className="text-xs font-semibold uppercase tracking-wide text-brand-700">Last paid order</p>
-            <h2 className="mt-1 text-xl font-black text-slate-900">
+            <h2 className="mt-1 text-xl font-black text-slate-900 tabular-nums">
               {formatOrderNumber(lastReceipt.order_number)}
               <span className="ml-2 text-sm font-medium">{lastReceipt.order_type}{lastReceipt.table_label ? ` · ${lastReceipt.table_label}` : ''}</span>
             </h2>
@@ -402,7 +402,7 @@ export function TableFloor({
             {recentOrderReceipts.map((order) => (
               <li key={order.id} className="flex flex-wrap items-center justify-between gap-3 py-3 first:pt-0 last:pb-0">
                 <div>
-                  <p className="font-mono font-bold text-slate-900">{formatOrderNumber(order.order_number)} <span className="font-sans font-medium">{order.order_type}{order.table_label ? ` · ${order.table_label}` : ''}</span></p>
+                  <p className="font-mono font-bold text-slate-900 tabular-nums">{formatOrderNumber(order.order_number)} <span className="font-sans font-medium">{order.order_type}{order.table_label ? ` · ${order.table_label}` : ''}</span></p>
                   <p className="text-sm text-slate-500">{formatCurrencyTHB(order.total_amount)}</p>
                 </div>
                 <button type="button" onClick={() => setReceiptToShow(order)} className="rounded-lg border border-slate-300 px-3 py-1.5 text-sm font-semibold text-slate-700 hover:bg-slate-50">Receipt</button>
@@ -493,7 +493,7 @@ export function TableFloor({
               <h3 className="text-sm font-medium text-slate-700">Checkout summary · Order items</h3>
               {cart.length
                 ? <span className="rounded-lg bg-slate-100 px-3 py-1 text-xs font-medium text-slate-600">Ticket assigned when paid</span>
-                : lastReceipt && <span className="rounded-lg bg-slate-900 px-3 py-1 font-mono text-sm font-bold text-white">{formatOrderNumber(lastReceipt.order_number)}</span>}
+                : lastReceipt && <span className="rounded-lg bg-slate-900 px-3 py-1 font-mono text-sm font-bold text-white tabular-nums">{formatOrderNumber(lastReceipt.order_number)}</span>}
             </div>
             {cart.map((line, index) => {
               const item = orderMenu.find((menuItem) => menuItem.id === line.menu_item_id);

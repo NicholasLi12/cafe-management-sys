@@ -2,9 +2,10 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { LogOut } from 'lucide-react';
 import { createSupabaseClient } from '@/lib/supabase/client';
 
-export function SignOutButton() {
+export function SignOutButton({ variant = 'dark' }: { variant?: 'dark' | 'light' }) {
   const router = useRouter();
   const [errorMessage, setErrorMessage] = useState('');
   const [isSigningOut, setIsSigningOut] = useState(false);
@@ -31,11 +32,16 @@ export function SignOutButton() {
         type="button"
         onClick={handleSignOut}
         disabled={isSigningOut}
-        className="w-full rounded-xl px-4 py-2.5 text-left text-sm font-medium text-slate-200 transition hover:bg-slate-800 hover:text-white disabled:opacity-60"
+        className={`flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left text-sm font-medium transition-colors disabled:opacity-60 ${
+          variant === 'dark'
+            ? 'text-slate-400 hover:bg-white/5 hover:text-white'
+            : 'border border-slate-200 bg-white text-slate-700 hover:bg-slate-50'
+        }`}
       >
+        <LogOut size={18} strokeWidth={1.75} />
         {isSigningOut ? 'Signing out…' : 'Sign Out'}
       </button>
-      {errorMessage && <p role="alert" className="mt-2 text-xs text-rose-300">{errorMessage}</p>}
+      {errorMessage && <p role="alert" className={`mt-2 text-xs ${variant === 'dark' ? 'text-rose-300' : 'text-rose-700'}`}>{errorMessage}</p>}
     </div>
   );
 }

@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { formatCurrencyTHB } from '@/lib/currency';
 import { createSupabaseClient } from '@/lib/supabase/client';
 import { getFranchiseContext } from '@/lib/supabase/franchise-client';
 
@@ -100,7 +101,7 @@ function isNonDrinkCategory(category: string) {
 
 function formatPriceDelta(value: number) {
   const amount = Number(value) || 0;
-  return `${amount > 0 ? '+' : amount < 0 ? '−' : ''}฿${Math.abs(amount).toFixed(2)}`;
+  return `${amount > 0 ? '+' : amount < 0 ? '−' : ''}${formatCurrencyTHB(Math.abs(amount))}`;
 }
 
 export function MenuManager({
@@ -551,10 +552,10 @@ export function MenuManager({
                   {item.has_sizes && <p className="mt-1 text-xs font-normal text-slate-500">S {formatPriceDelta(item.size_prices.Small)} · M {formatPriceDelta(item.size_prices.Medium)} · L {formatPriceDelta(item.size_prices.Large)}</p>}
                 </td>
                 <td className="px-4 py-3">{item.category}</td>
-                <td className="px-4 py-3">฿{Number(item.price).toFixed(2)}</td>
-                {(isAdmin || demo) && <td className="px-4 py-3">฿{Number(item.estimated_cost).toFixed(2)}</td>}
+                <td className="px-4 py-3 tabular-nums">{formatCurrencyTHB(Number(item.price))}</td>
+                {(isAdmin || demo) && <td className="px-4 py-3 tabular-nums">{formatCurrencyTHB(Number(item.estimated_cost))}</td>}
                 <td className="px-4 py-3">
-                  <span className={`rounded-full px-2 py-1 text-xs font-medium ${item.is_available ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-100 text-slate-600'}`}>{item.is_available ? 'Available' : 'Unavailable'}</span>
+                  <span className={`rounded-full border px-2 py-1 text-xs font-medium ${item.is_available ? 'border-emerald-200 bg-emerald-50 text-emerald-700' : 'border-slate-200 bg-slate-50 text-slate-600'}`}>{item.is_available ? 'Available' : 'Unavailable'}</span>
                   {item.ingredients.length > 0 && <p className="mt-1 text-xs text-slate-500">{item.ingredients.map((ingredient) => `${supplies.find((supply) => supply.id === ingredient.supply_id)?.item_name ?? 'Ingredient'} × ${ingredient.quantity_required} ${supplies.find((supply) => supply.id === ingredient.supply_id)?.unit ?? ''}`).join(', ')}</p>}
                 </td>
                 {(isAdmin || demo) && <td className="px-4 py-3">
@@ -716,7 +717,7 @@ export function MenuManager({
               const margin = recipeItem.price > 0 ? ((recipeItem.price - cost) / recipeItem.price) * 100 : 0;
               return (
                 <div className="mt-4 grid gap-3 rounded-xl bg-brand-50 p-4 sm:grid-cols-2">
-                  <div><p className="text-sm text-brand-800">Drink Cost (COGS)</p><p className="text-xl font-bold text-brand-950">฿{cost.toFixed(2)}</p></div>
+                  <div><p className="text-sm text-brand-800">Drink Cost (COGS)</p><p className="text-xl font-bold text-brand-950 tabular-nums">{formatCurrencyTHB(cost)}</p></div>
                   <div><p className="text-sm text-brand-800">Net Profit Margin</p><p className="text-xl font-bold text-brand-950">{margin.toFixed(1)}%</p></div>
                 </div>
               );

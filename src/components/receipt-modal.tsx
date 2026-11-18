@@ -49,10 +49,10 @@ export function ReceiptModal({
       if (event.target === event.currentTarget) onClose();
     }}>
       <section role="dialog" aria-modal="true" aria-labelledby="receipt-title" className="max-h-[95vh] w-full max-w-[340px] overflow-y-auto rounded-xl bg-white p-4 shadow-2xl">
-        <div id="print-receipt" className="receipt-content font-mono text-sm text-black">
+        <div id="print-receipt" className="receipt-content font-mono text-sm text-black tabular-nums">
           <div className="text-center">
             <p className="font-bold">{branchName}</p>
-            <h2 id="receipt-title" className="mt-2 text-2xl font-black">{formatOrderNumber(order.order_number)}</h2>
+            <h2 id="receipt-title" className="mt-2 text-2xl font-black tabular-nums">{formatOrderNumber(order.order_number)}</h2>
             <p className="mt-1">{dateLabel} · Bangkok</p>
           </div>
           <div className="my-3 border-y border-dashed border-black py-2">

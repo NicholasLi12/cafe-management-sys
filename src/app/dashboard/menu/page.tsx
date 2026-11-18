@@ -88,7 +88,8 @@ export default async function MenuPage() {
       <div className="space-y-6">
         <div>
           <p className="text-sm font-semibold uppercase tracking-[0.2em] text-brand-600">Menu</p>
-          <h1 className="mt-2 text-3xl font-bold text-slate-900">Menu & Recipe Controls</h1>
+          <h1 className="mt-2 text-2xl font-semibold tracking-tight text-slate-900">Menu & Recipe Controls</h1>
+          <p className="mt-1 text-sm text-slate-500">Manage menu availability, pricing, recipes, and drink options.</p>
         </div>
         <MenuManager menuItems={menuItems} supplies={supplies} modifierRules={modifierRules} demo={!user} isAdmin={!user || role === 'admin'} />
       </div>

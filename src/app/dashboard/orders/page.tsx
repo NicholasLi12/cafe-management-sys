@@ -110,8 +110,8 @@ export default async function OrdersPage() {
       <div className="space-y-6">
         <div>
           <p className="text-sm font-semibold uppercase tracking-[0.2em] text-brand-600">Orders</p>
-          <h1 className="mt-2 text-3xl font-bold text-slate-900">Order History</h1>
-          <p className="mt-2 text-sm text-slate-600">Search and review paid orders for your cafe.</p>
+          <h1 className="mt-2 text-2xl font-semibold tracking-tight text-slate-900">Order History</h1>
+          <p className="mt-1 text-sm text-slate-500">Search and review paid orders for your cafe.</p>
         </div>
         <OrderHistory orders={orders} branchName={profile.cafe_name} />
       </div>

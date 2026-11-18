@@ -153,15 +153,15 @@ export function BranchSwitcher({ instanceId }: { instanceId: string }) {
   if (!hasHQAccess) return null;
 
   return (
-    <div className="mt-4 space-y-2">
-      <label className="block text-xs font-medium text-slate-400" htmlFor={`active-branch-${instanceId}`}>Active branch</label>
+    <div className="mt-4 space-y-2 border-t border-white/10 pt-3">
+      <label className="block text-[11px] font-medium uppercase tracking-wide text-slate-400" htmlFor={`active-branch-${instanceId}`}>Active branch</label>
       <div className="flex gap-2">
         <select
           id={`active-branch-${instanceId}`}
           value={activeBranchId}
           onChange={(event) => void switchBranch(event.target.value)}
           disabled={isLoading || isSaving || branches.length === 0}
-          className="min-w-0 flex-1 rounded-lg border border-slate-700 bg-slate-800 px-2.5 py-2 text-sm text-white disabled:opacity-60"
+          className="min-w-0 flex-1 rounded-lg border border-slate-700 bg-slate-900 px-2.5 py-2 text-sm text-white focus:border-orange-400 focus:ring-orange-400/20"
         >
           {isLoading && <option value="">Loading branches…</option>}
           {!isLoading && !branches.length && <option value="">No admin branches</option>}
@@ -172,7 +172,7 @@ export function BranchSwitcher({ instanceId }: { instanceId: string }) {
         type="button"
         onClick={() => { setErrorMessage(''); setIsManaging(true); }}
         disabled={isLoading || isSaving}
-        className="w-full rounded-lg border border-slate-700 px-3 py-2 text-left text-xs font-semibold text-slate-200 hover:bg-slate-800 disabled:opacity-50"
+        className="w-full rounded-lg border border-white/10 px-3 py-2 text-left text-xs font-medium text-slate-300 transition hover:border-white/20 hover:bg-white/5 hover:text-white disabled:opacity-50"
       >
         Manage Branches
       </button>

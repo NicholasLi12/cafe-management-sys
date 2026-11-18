@@ -46,7 +46,8 @@ export default async function DashboardPage() {
         <div className="space-y-6">
           <div>
             <p className="text-sm font-semibold uppercase tracking-[0.2em] text-brand-600">Overview</p>
-            <h1 className="mt-2 text-3xl font-bold text-slate-900">Daily Summary Routine</h1>
+            <h1 className="mt-2 text-2xl font-semibold tracking-tight text-slate-900">Daily Summary Routine</h1>
+            <p className="mt-1 text-sm text-slate-500">A quick overview of today’s cafe performance.</p>
           </div>
           <SummaryCards />
           <div className="rounded-2xl border border-brand-100 bg-white p-5 text-sm text-slate-600 shadow-soft">
@@ -113,10 +114,10 @@ export default async function DashboardPage() {
       <div className="space-y-6">
         <div>
           <p className="text-sm font-semibold uppercase tracking-[0.2em] text-brand-600">Overview</p>
-          <h1 className="mt-2 text-3xl font-bold text-slate-900">
+          <h1 className="mt-2 text-2xl font-semibold tracking-tight text-slate-900">
             {profile?.cafe_name ? `${profile.cafe_name} · Daily Summary` : 'Daily Summary'}
           </h1>
-          <p className="mt-2 text-sm text-slate-500">Today’s paid orders · Asia/Bangkok</p>
+          <p className="mt-1 text-sm text-slate-500">Today’s sales, costs, and cafe operations · Asia/Bangkok.</p>
         </div>
 
         {!profile && (
@@ -143,10 +144,10 @@ export default async function DashboardPage() {
                   <span className="min-w-0">
                     <span className="font-medium text-slate-900">{supply.item_name}</span>
                     <span className="block text-slate-600">
-                      {supply.current_stock} {supply.unit} current · {supply.low_stock_threshold} {supply.unit} minimum
+                      <span className="tabular-nums">{supply.current_stock} {supply.unit} current · {supply.low_stock_threshold} {supply.unit} minimum</span>
                     </span>
                   </span>
-                  <span className={`rounded-full px-2 py-1 text-xs font-semibold ${Number(supply.current_stock) <= 0 ? 'bg-rose-100 text-rose-800' : 'bg-amber-100 text-amber-800'}`}>
+                  <span className={`rounded-full border px-2 py-1 text-xs font-semibold ${Number(supply.current_stock) <= 0 ? 'border-rose-200 bg-rose-50 text-rose-700' : 'border-amber-200 bg-amber-50 text-amber-700'}`}>
                     {Number(supply.current_stock) <= 0 ? 'Out of Stock' : 'Low Stock'}
                   </span>
                 </li>

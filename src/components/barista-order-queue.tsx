@@ -221,12 +221,13 @@ export function BaristaOrderQueue({
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 tabular-nums">
       <header className="flex flex-col gap-4 rounded-2xl bg-slate-950 p-5 text-white shadow-soft sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <p className="text-sm font-semibold uppercase tracking-[0.2em] text-cyan-300">Espresso Bar</p>
-          <h1 className="mt-1 text-3xl font-bold">Barista Order Queue</h1>
-          <p className="mt-1 text-sm text-slate-300">{tickets.length} active {tickets.length === 1 ? 'order' : 'orders'}</p>
+          <p className="text-xs font-semibold uppercase tracking-[0.2em] text-orange-300">Espresso Bar</p>
+          <h1 className="mt-1 text-2xl font-semibold tracking-tight">Barista Order Queue</h1>
+          <p className="mt-1 text-sm text-slate-300">Prepare and hand off incoming cafe orders.</p>
+          <p className="mt-1 text-xs text-slate-400 tabular-nums">{tickets.length} active {tickets.length === 1 ? 'order' : 'orders'}</p>
         </div>
         <div className="flex items-center gap-3">
           <span className={`inline-flex items-center gap-2 rounded-full px-3 py-1.5 text-sm font-semibold ${connectionStatus === 'live' ? 'bg-emerald-300 text-emerald-950' : connectionStatus === 'offline' ? 'bg-rose-300 text-rose-950' : 'bg-amber-200 text-amber-950'}`}>
@@ -260,18 +261,18 @@ export function BaristaOrderQueue({
               <article key={ticket.id} className={`overflow-hidden rounded-2xl border-2 bg-white shadow-lg ${statusStyle(ticket.prep_status)}`}>
                 <div className="flex items-start justify-between gap-3 bg-slate-950 px-5 py-4 text-white">
                   <div className="min-w-0">
-                    <p className="text-lg font-black tracking-wide text-amber-300">{formatOrderNumber(ticket.order_number)}</p>
+                    <p className="text-lg font-black tracking-wide text-amber-300 tabular-nums">{formatOrderNumber(ticket.order_number)}</p>
                     <p className="text-xs font-semibold uppercase tracking-wider text-slate-300">Order #{ticket.id.replaceAll('-', '').slice(0, 8).toUpperCase()}</p>
                     <h2 className="mt-1 text-xl font-bold">{getOrderType(ticket)}</h2>
                   </div>
-                  <span className={`shrink-0 rounded-xl px-3 py-2 text-center font-bold ${timerStyle}`}>
+                  <span className={`shrink-0 rounded-xl px-3 py-2 text-center font-bold tabular-nums ${timerStyle}`}>
                     <span className="block text-xs uppercase">Wait</span>
                     <span className="text-xl">{waitedMinutes}m</span>
                   </span>
                 </div>
                 <div className="space-y-4 p-5">
                   <div className="flex items-center justify-between gap-2">
-                    <span className="rounded-full bg-slate-100 px-3 py-1 text-sm font-semibold text-slate-800">{statusLabel(ticket.prep_status)}</span>
+                    <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-sm font-semibold text-slate-700">{statusLabel(ticket.prep_status)}</span>
                     <time className="text-sm text-slate-500" dateTime={ticket.created_at}>
                       {new Intl.DateTimeFormat('en-GB', { hour: '2-digit', minute: '2-digit' }).format(new Date(ticket.created_at))}
                     </time>
@@ -281,7 +282,7 @@ export function BaristaOrderQueue({
                     {ticket.items.map((item, index) => (
                       <li key={`${ticket.id}-${index}`} className="py-4 first:pt-0 last:pb-0">
                         <div className="flex items-start gap-3">
-                          <span className="flex h-10 min-w-10 items-center justify-center rounded-xl bg-slate-900 px-2 text-lg font-black text-white">{item.quantity}×</span>
+                          <span className="flex h-10 min-w-10 items-center justify-center rounded-xl bg-slate-900 px-2 text-lg font-black text-white tabular-nums">{item.quantity}×</span>
                           <div className="min-w-0 flex-1">
                             <p className="text-lg font-bold leading-tight text-slate-950">{item.name}</p>
                             <div className="mt-2 flex flex-wrap gap-1.5">

@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { formatCurrencyTHB } from '@/lib/currency';
 import { createSupabaseClient } from '@/lib/supabase/client';
 import { getFranchiseContext } from '@/lib/supabase/franchise-client';
 
@@ -54,9 +55,9 @@ export function InventoryManager({
   const getStockStatus = (item: Supply) => {
     const stock = Number(item.current_stock);
     const threshold = Number(item.low_stock_threshold);
-    if (stock <= 0) return { label: 'Out of Stock', style: 'bg-rose-100 text-rose-800' };
-    if (threshold > 0 && stock <= threshold) return { label: 'Low Stock', style: 'bg-amber-100 text-amber-800' };
-    return { label: 'In Stock', style: 'bg-emerald-100 text-emerald-800' };
+    if (stock <= 0) return { label: 'Out of Stock', style: 'border-rose-200 bg-rose-50 text-rose-700' };
+    if (threshold > 0 && stock <= threshold) return { label: 'Low Stock', style: 'border-amber-200 bg-amber-50 text-amber-700' };
+    return { label: 'In Stock', style: 'border-emerald-200 bg-emerald-50 text-emerald-700' };
   };
 
   const getOwnerId = async () => {
@@ -203,9 +204,9 @@ export function InventoryManager({
                 return (
                   <tr key={item.id} className="border-t border-slate-200">
                     <td className="px-4 py-3 font-medium">{item.item_name}</td>
-                    <td className="px-4 py-3">{item.current_stock} {item.unit}</td>
-                    <td className="px-4 py-3">{item.low_stock_threshold} {item.unit}</td>
-                    <td className="px-4 py-3"><span className={`rounded-full px-2 py-1 text-xs font-medium ${status.style}`}>{status.label}</span></td>
+                    <td className="px-4 py-3 tabular-nums">{item.current_stock} {item.unit}</td>
+                    <td className="px-4 py-3 tabular-nums">{item.low_stock_threshold} {item.unit}</td>
+                    <td className="px-4 py-3"><span className={`rounded-full border px-2 py-1 text-xs font-medium ${status.style}`}>{status.label}</span></td>
                   </tr>
                 );
               })}
@@ -267,8 +268,8 @@ export function InventoryManager({
               return (
                 <tr key={item.id} className="border-t border-slate-200">
                   <td className="px-4 py-3 font-medium">{item.item_name}</td>
-                  <td className="px-4 py-3">{item.current_stock} {item.unit}</td>
-                  <td className="min-w-44 px-4 py-3">
+                  <td className="px-4 py-3 tabular-nums">{item.current_stock} {item.unit}</td>
+                  <td className="min-w-44 px-4 py-3 tabular-nums">
                     <div className="flex items-center gap-2">
                       <input
                         aria-label={`Minimum stock threshold for ${item.item_name}`}
@@ -286,8 +287,8 @@ export function InventoryManager({
                       </button>
                     </div>
                   </td>
-                  <td className="px-4 py-3"><span className={`rounded-full px-2 py-1 text-xs font-medium ${status.style}`}>{status.label}</span></td>
-                  <td className="px-4 py-3">฿{Number(item.unit_cost).toFixed(2)}</td>
+                  <td className="px-4 py-3"><span className={`rounded-full border px-2 py-1 text-xs font-medium ${status.style}`}>{status.label}</span></td>
+                  <td className="px-4 py-3 tabular-nums">{formatCurrencyTHB(Number(item.unit_cost))}</td>
                   <td className="px-4 py-3">
                     <div className="flex flex-wrap items-center gap-2">
                       <button type="button" disabled={demo || busy || Number(item.current_stock) <= 0} onClick={() => saveStock(item, Math.max(0, Number(item.current_stock) - 1))} className="rounded border border-slate-300 px-2 py-1 disabled:opacity-50">−1</button>

@@ -2,6 +2,8 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { CircleDollarSign, Clock3, Wallet } from 'lucide-react';
+import { formatCurrencyTHB } from '@/lib/currency';
 import { createSupabaseClient } from '@/lib/supabase/client';
 import { getFranchiseContext } from '@/lib/supabase/franchise-client';
 
@@ -337,17 +339,26 @@ export function EmployeeManager({
           )}
         </div>
         <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-          <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-soft">
-            <p className="text-sm text-slate-500">Total Payroll</p>
-            <p className="mt-1 text-xl font-bold text-slate-900">฿{payrollTotal.toFixed(2)}</p>
+          <div className="rounded-xl border border-slate-200/80 bg-white p-4 shadow-sm">
+            <div className="flex items-center justify-between gap-3">
+              <p className="text-sm text-slate-500">Total Payroll</p>
+              <span className="inline-flex h-9 w-9 items-center justify-center rounded-lg bg-orange-50 text-orange-600"><CircleDollarSign size={18} strokeWidth={1.75} /></span>
+            </div>
+            <p className="mt-2 text-xl font-semibold text-slate-900 tabular-nums">{formatCurrencyTHB(payrollTotal)}</p>
           </div>
-          <div className="rounded-2xl border border-emerald-100 bg-emerald-50 p-4">
+          <div className="rounded-xl border border-slate-200/80 bg-white p-4 shadow-sm">
+            <div className="flex items-center justify-between gap-3">
             <p className="text-sm text-emerald-800">Paid Staff · {paidEmployees.length}</p>
-            <p className="mt-1 text-xl font-bold text-emerald-900">฿{payrollAmount(paidEmployees).toFixed(2)}</p>
+              <span className="inline-flex h-9 w-9 items-center justify-center rounded-lg bg-emerald-50 text-emerald-600"><Wallet size={18} strokeWidth={1.75} /></span>
+            </div>
+            <p className="mt-2 text-xl font-semibold text-slate-900 tabular-nums">{formatCurrencyTHB(payrollAmount(paidEmployees))}</p>
           </div>
-          <div className="rounded-2xl border border-amber-100 bg-amber-50 p-4">
-            <p className="text-sm text-amber-800">Unpaid Staff · {unpaidEmployees.length}</p>
-            <p className="mt-1 text-xl font-bold text-amber-900">฿{payrollAmount(unpaidEmployees).toFixed(2)}</p>
+          <div className="rounded-xl border border-slate-200/80 bg-white p-4 shadow-sm">
+            <div className="flex items-center justify-between gap-3">
+              <p className="text-sm text-slate-500">Unpaid Staff · {unpaidEmployees.length}</p>
+              <span className="inline-flex h-9 w-9 items-center justify-center rounded-lg bg-slate-100 text-slate-600"><Clock3 size={18} strokeWidth={1.75} /></span>
+            </div>
+            <p className="mt-2 text-xl font-semibold text-slate-900 tabular-nums">{formatCurrencyTHB(payrollAmount(unpaidEmployees))}</p>
           </div>
         </div>
       </section>
@@ -374,12 +385,12 @@ export function EmployeeManager({
                 <td className="px-4 py-3 font-medium text-slate-900">{employee.full_name}</td>
                 <td className="px-4 py-3">{employee.email ?? '—'}</td>
                 <td className="px-4 py-3">
-                  <span className={`rounded-full px-2 py-1 text-xs font-medium ${employee.role.toLowerCase() === 'admin' ? 'bg-violet-100 text-violet-800' : 'bg-brand-100 text-brand-800'}`}>
+                  <span className={`rounded-full border px-2 py-1 text-xs font-medium ${employee.role.toLowerCase() === 'admin' ? 'border-violet-200 bg-violet-50 text-violet-700' : 'border-orange-200 bg-orange-50 text-orange-700'}`}>
                     {employee.role}
                   </span>
                 </td>
                 <td className="px-4 py-3">
-                  <span className={`rounded-full px-2 py-1 text-xs font-medium ${employee.employment_type === 'part_time' ? 'bg-blue-100 text-blue-800' : 'bg-slate-100 text-slate-700'}`}>
+                  <span className={`rounded-full border px-2 py-1 text-xs font-medium ${employee.employment_type === 'part_time' ? 'border-blue-200 bg-blue-50 text-blue-700' : 'border-slate-200 bg-slate-50 text-slate-600'}`}>
                     {employee.employment_type === 'part_time' ? 'Part-time' : 'Full-time'}
                   </span>
                   {isAdmin && !demo && (
@@ -404,7 +415,7 @@ export function EmployeeManager({
                 <td className="min-w-52 px-4 py-3">
                   {employee.employment_type === 'part_time' ? (
                     <>
-                      <p>฿{employee.hourly_rate.toFixed(2)}/hr</p>
+                      <p className="tabular-nums">{formatCurrencyTHB(employee.hourly_rate)}/hr</p>
                       <div className="mt-1 flex items-center gap-2">
                         <label className="sr-only" htmlFor={`hours-${employee.id}`}>Hours worked</label>
                         <input
@@ -423,18 +434,18 @@ export function EmployeeManager({
                           </button>
                         )}
                       </div>
-                      <p className="mt-1 font-medium text-slate-800">Calculated pay: ฿{(employee.hourly_rate * employee.hours_worked).toFixed(2)}</p>
+                      <p className="mt-1 font-medium text-slate-800 tabular-nums">Calculated pay: {formatCurrencyTHB(employee.hourly_rate * employee.hours_worked)}</p>
                     </>
                   ) : (
                     <>
                       <p className="text-xs text-slate-500">Fixed Monthly</p>
-                      <p className="font-medium">Monthly salary: ฿{employee.hourly_rate.toFixed(2)}</p>
-                      <p className="mt-1 text-xs text-slate-500">{employee.hours_worked.toFixed(2)} hrs logged this pay cycle</p>
+                      <p className="font-medium tabular-nums">Monthly salary: {formatCurrencyTHB(employee.hourly_rate)}</p>
+                      <p className="mt-1 text-xs text-slate-500 tabular-nums">{employee.hours_worked.toFixed(2)} hrs logged this pay cycle</p>
                     </>
                   )}
                 </td>
                 <td className="min-w-40 px-4 py-3">
-                  <span className={`rounded-full px-2 py-1 text-xs font-medium ${employee.salary_paid ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'}`}>
+                  <span className={`rounded-full border px-2 py-1 text-xs font-medium ${employee.salary_paid ? 'border-emerald-200 bg-emerald-50 text-emerald-700' : 'border-amber-200 bg-amber-50 text-amber-700'}`}>
                     {employee.salary_paid ? 'Paid' : 'Unpaid'}
                   </span>
                   {employee.salary_paid && employee.last_paid_at && (

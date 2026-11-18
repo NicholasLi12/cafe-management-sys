@@ -198,11 +198,11 @@ export function OrderHistory({ orders, branchName }: { orders: HistoryOrder[]; b
       <div className="grid gap-3 sm:grid-cols-2">
         <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-soft">
           <p className="text-sm text-slate-500">Matching Orders</p>
-          <p className="mt-1 text-2xl font-bold text-slate-900">{filteredOrders.length}</p>
+          <p className="mt-1 text-2xl font-bold text-slate-900 tabular-nums">{filteredOrders.length}</p>
         </div>
         <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-soft">
           <p className="text-sm text-slate-500">Filtered Gross Sales</p>
-          <p className="mt-1 text-2xl font-bold text-emerald-700">{formatCurrencyTHB(grossSales)}</p>
+          <p className="mt-1 text-2xl font-bold text-emerald-700 tabular-nums">{formatCurrencyTHB(grossSales)}</p>
         </div>
       </div>
 
@@ -239,7 +239,7 @@ export function OrderHistory({ orders, branchName }: { orders: HistoryOrder[]; b
                 return (
                   <Fragment key={order.id}>
                     <tr className="border-t border-slate-200 align-top">
-                      <td className="px-4 py-3"><span className="rounded-lg bg-brand-50 px-2.5 py-1 font-mono font-bold text-brand-800">{formatOrderNumber(order.order_number)}</span></td>
+                      <td className="px-4 py-3"><span className="rounded-lg border border-orange-200 bg-orange-50 px-2.5 py-1 font-mono font-bold text-orange-700 tabular-nums">{formatOrderNumber(order.order_number)}</span></td>
                       <td className="whitespace-nowrap px-4 py-3">{formatOrderDate(order.created_at)}</td>
                       <td className="px-4 py-3">
                         <div className="flex items-center gap-2">
@@ -248,7 +248,7 @@ export function OrderHistory({ orders, branchName }: { orders: HistoryOrder[]; b
                             Copy
                           </button>
                         </div>
-                        {order.external_order_ref && <span className="mt-1 inline-block rounded-full bg-violet-50 px-2 py-0.5 text-xs text-violet-700">Ref: {order.external_order_ref}</span>}
+                        {order.external_order_ref && <span className="mt-1 inline-block rounded-full border border-violet-200 bg-violet-50 px-2 py-0.5 text-xs text-violet-700">Ref: {order.external_order_ref}</span>}
                       </td>
                       <td className="px-4 py-3">{getOrderTypeLabel(order)}</td>
                       <td className="px-4 py-3">{getPaymentLabel(order.payment_method)}</td>
@@ -260,7 +260,7 @@ export function OrderHistory({ orders, branchName }: { orders: HistoryOrder[]; b
                           </button>
                         )}
                       </td>
-                      <td className="whitespace-nowrap px-4 py-3 text-right font-semibold text-slate-900">{formatCurrencyTHB(order.total_amount)}</td>
+                      <td className="whitespace-nowrap px-4 py-3 text-right font-semibold text-slate-900 tabular-nums">{formatCurrencyTHB(order.total_amount)}</td>
                       <td className="px-4 py-3">
                         <button
                           type="button"

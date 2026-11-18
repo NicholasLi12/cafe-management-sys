@@ -16,6 +16,7 @@ import {
   YAxis,
 } from 'recharts';
 import { formatCurrencyTHB } from '@/lib/currency';
+import { Activity, CircleDollarSign, Package, TrendingUp, type LucideIcon } from 'lucide-react';
 
 type DateRange = '7d' | '30d' | 'month';
 type OrderItem = {
@@ -107,12 +108,17 @@ function channelName(orderType: string) {
   return 'Delivery';
 }
 
-function MetricCard({ label, value, detail, tone }: { label: string; value: string; detail: string; tone: string }) {
+function MetricCard({ label, value, detail, tone, Icon }: { label: string; value: string; detail: string; tone: string; Icon: LucideIcon }) {
   return (
-    <article className={`rounded-2xl border border-slate-200 p-4 shadow-sm ${tone}`}>
-      <p className="text-sm font-medium opacity-80">{label}</p>
-      <p className="mt-2 text-2xl font-bold">{value}</p>
-      <p className="mt-1 text-xs opacity-70">{detail}</p>
+    <article className="rounded-xl border border-slate-200/80 bg-white p-4 shadow-sm">
+      <div className="flex items-center justify-between gap-3">
+        <p className="text-sm font-medium text-slate-500">{label}</p>
+        <span className={`inline-flex h-9 w-9 items-center justify-center rounded-lg ${tone}`}>
+          <Icon size={18} strokeWidth={1.75} />
+        </span>
+      </div>
+      <p className="mt-2 text-xl font-semibold text-slate-900 tabular-nums">{value}</p>
+      <p className="mt-1 text-xs text-slate-500">{detail}</p>
     </article>
   );
 }
@@ -192,8 +198,8 @@ export function AnalyticsDashboard({
       <header className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
         <div>
           <p className="text-sm font-semibold uppercase tracking-[0.2em] text-brand-600">Business Insights</p>
-          <h1 className="mt-2 text-3xl font-bold text-slate-900">Analytics</h1>
-          <p className="mt-1 text-sm text-slate-500">Paid orders · daily and hourly times in Asia/Bangkok</p>
+          <h1 className="mt-2 text-2xl font-semibold tracking-tight text-slate-900">Analytics</h1>
+          <p className="mt-1 text-sm text-slate-500">Sales, costs, and order patterns · Asia/Bangkok.</p>
         </div>
         <nav aria-label="Analytics date range" className="flex flex-wrap gap-2">
           {rangeOptions.map((option) => (
@@ -243,10 +249,10 @@ export function AnalyticsDashboard({
       )}
 
       <section aria-label="Performance summary" className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-        <MetricCard label="Gross Sales" value={formatCurrencyTHB(grossSales)} detail={`${orders.length} paid orders`} tone="bg-orange-50 text-orange-900" />
-        <MetricCard label="Ingredient Cost / COGS" value={formatCurrencyTHB(ingredientCost)} detail="Recipe-based recorded costs" tone="bg-slate-100 text-slate-900" />
-        <MetricCard label="True Net Profit" value={formatCurrencyTHB(netProfit)} detail="Gross sales minus ingredient cost" tone="bg-emerald-50 text-emerald-900" />
-        <MetricCard label="Net Profit Margin" value={`${margin.toFixed(1)}%`} detail="Net profit as a share of sales" tone="bg-amber-50 text-amber-900" />
+        <MetricCard label="Gross Sales" value={formatCurrencyTHB(grossSales)} detail={`${orders.length} paid orders`} tone="bg-orange-50 text-orange-600" Icon={CircleDollarSign} />
+        <MetricCard label="Ingredient Cost / COGS" value={formatCurrencyTHB(ingredientCost)} detail="Recipe-based recorded costs" tone="bg-slate-100 text-slate-600" Icon={Package} />
+        <MetricCard label="True Net Profit" value={formatCurrencyTHB(netProfit)} detail="Gross sales minus ingredient cost" tone="bg-emerald-50 text-emerald-600" Icon={TrendingUp} />
+        <MetricCard label="Net Profit Margin" value={`${margin.toFixed(1)}%`} detail="Net profit as a share of sales" tone="bg-orange-50 text-orange-600" Icon={Activity} />
       </section>
 
       <section className="grid gap-5 xl:grid-cols-2">
@@ -256,7 +262,7 @@ export function AnalyticsDashboard({
               <AreaChart data={dailyRows} margin={{ top: 8, right: 12, left: 0, bottom: 0 }}>
                 <CartesianGrid strokeDasharray="3 3" vertical={false} />
                 <XAxis dataKey="label" tick={{ fontSize: 11 }} />
-                <YAxis tick={{ fontSize: 11 }} tickFormatter={(value: number) => `฿${value}`} width={58} />
+                <YAxis tick={{ fontSize: 11 }} tickFormatter={(value: number) => `฿${value.toLocaleString('en-US')}`} width={58} />
                 <Tooltip formatter={(value) => formatCurrencyTHB(Number(value ?? 0))} />
                 <Area type="monotone" dataKey="sales" name="Gross Sales" stroke={chartOrange} fill={chartOrange} fillOpacity={0.14} strokeWidth={2} />
                 <Area type="monotone" dataKey="cogs" name="Ingredient Cost" stroke={chartRed} fill={chartRed} fillOpacity={0.1} strokeWidth={2} />

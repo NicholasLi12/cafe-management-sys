@@ -127,7 +127,8 @@ export default async function TablesPage() {
       <div className="space-y-6">
         <div>
           <p className="text-sm font-semibold uppercase tracking-[0.2em] text-brand-600">Operations</p>
-          <h1 className="mt-2 text-3xl font-bold text-slate-900">Table Status Board</h1>
+          <h1 className="mt-2 text-2xl font-semibold tracking-tight text-slate-900">Table Status Board</h1>
+          <p className="mt-1 text-sm text-slate-500">Manage seating, record orders, and review recent receipts.</p>
         </div>
         <TableFloor tables={tables} menuItems={menuItems} drinkModifiers={drinkModifiers} recentOrders={recentOrders} demo={!user} isAdmin={!user || role === 'admin'} branchName={cafeName ?? 'Cafe'} />
       </div>

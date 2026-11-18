@@ -107,7 +107,7 @@ export function ShiftLogs({ shifts, isAdmin }: { shifts: StaffShift[]; isAdmin: 
                 <td className="whitespace-nowrap px-4 py-3">
                   {shift.clock_out
                     ? formatLocalTime(shift.clock_out)
-                    : <span className="rounded-full bg-emerald-100 px-2 py-1 text-xs font-semibold text-emerald-800">Active</span>}
+                    : <span className="rounded-full border border-emerald-200 bg-emerald-50 px-2 py-1 text-xs font-semibold text-emerald-700">Active</span>}
                 </td>
                 <td className="whitespace-nowrap px-4 py-3">{shift.total_hours === null ? 'In progress' : `${Number(shift.total_hours).toFixed(2)} hrs`}</td>
                 {isAdmin && (
