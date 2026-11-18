@@ -3,6 +3,7 @@ import { BranchSwitcher } from '@/components/branch-switcher';
 import { SignOutButton } from '@/components/sign-out-button';
 
 const sharedNavItems = [
+  { href: '/dashboard', label: 'Summary' },
   { href: '/dashboard/tables', label: 'Tables' },
   { href: '/dashboard/barista', label: 'Barista Queue' },
   { href: '/dashboard/orders', label: 'Orders' },
@@ -11,7 +12,6 @@ const sharedNavItems = [
 ] as const;
 
 const adminNavItems = [
-  { href: '/dashboard', label: 'Summary' },
   { href: '/dashboard/employees', label: 'Employees' },
   { href: '/dashboard/analytics', label: 'Analytics' },
 ] as const;

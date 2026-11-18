@@ -34,8 +34,30 @@ export function InventoryManager({
   const [isSaving, setIsSaving] = useState(false);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [restockAmounts, setRestockAmounts] = useState<Record<string, string>>({});
+  const [thresholdInputs, setThresholdInputs] = useState<Record<string, string>>({});
+  const [showLowStockOnly, setShowLowStockOnly] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
   const [successMessage, setSuccessMessage] = useState('');
+  const lowStockCount = items.filter((item) => {
+    const stock = Number(item.current_stock);
+    const threshold = Number(item.low_stock_threshold);
+    return stock <= 0 || (threshold > 0 && stock <= threshold);
+  }).length;
+  const visibleItems = showLowStockOnly
+    ? items.filter((item) => {
+      const stock = Number(item.current_stock);
+      const threshold = Number(item.low_stock_threshold);
+      return stock <= 0 || (threshold > 0 && stock <= threshold);
+    })
+    : items;
+
+  const getStockStatus = (item: Supply) => {
+    const stock = Number(item.current_stock);
+    const threshold = Number(item.low_stock_threshold);
+    if (stock <= 0) return { label: 'Out of Stock', style: 'bg-rose-100 text-rose-800' };
+    if (threshold > 0 && stock <= threshold) return { label: 'Low Stock', style: 'bg-amber-100 text-amber-800' };
+    return { label: 'In Stock', style: 'bg-emerald-100 text-emerald-800' };
+  };
 
   const getOwnerId = async () => {
     const context = await getFranchiseContext();
@@ -65,6 +87,37 @@ export function InventoryManager({
       router.refresh();
     } catch (error) {
       setErrorMessage(error instanceof Error ? error.message : 'Could not update stock.');
+    } finally {
+      setBusyId(null);
+    }
+  };
+
+  const saveThreshold = async (item: Supply) => {
+    const threshold = Number(thresholdInputs[item.id] ?? item.low_stock_threshold);
+    if (!Number.isFinite(threshold) || threshold < 0) {
+      setErrorMessage('Minimum stock threshold must be a non-negative number.');
+      return;
+    }
+    setErrorMessage('');
+    setSuccessMessage('');
+    setBusyId(item.id);
+    try {
+      await getOwnerId();
+      const { data, error } = await createSupabaseClient()
+        .from('supplies')
+        .update({ low_stock_threshold: threshold })
+        .eq('id', item.id)
+        .select('id, low_stock_threshold')
+        .single();
+      if (error) throw error;
+      setItems((current) => current.map((row) => row.id === item.id
+        ? { ...row, low_stock_threshold: Number(data.low_stock_threshold) }
+        : row));
+      setThresholdInputs((current) => ({ ...current, [item.id]: String(data.low_stock_threshold) }));
+      setSuccessMessage(`${item.item_name} minimum stock threshold updated.`);
+      router.refresh();
+    } catch (error) {
+      setErrorMessage(error instanceof Error ? error.message : 'Could not update minimum stock threshold.');
     } finally {
       setBusyId(null);
     }
@@ -133,25 +186,30 @@ export function InventoryManager({
 
       {!isAdmin && !demo && (
         <div className="overflow-x-auto rounded-2xl border border-slate-200 bg-white shadow-soft">
+          <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 p-4">
+            <p className="font-semibold text-slate-900">Inventory status</p>
+            <div className="flex gap-2">
+              <button type="button" onClick={() => setShowLowStockOnly(false)} className={`rounded-lg px-3 py-2 text-sm font-medium ${!showLowStockOnly ? 'bg-slate-900 text-white' : 'bg-slate-100 text-slate-700'}`}>All Items</button>
+              <button type="button" onClick={() => setShowLowStockOnly(true)} className={`rounded-lg px-3 py-2 text-sm font-medium ${showLowStockOnly ? 'bg-amber-100 text-amber-900' : 'bg-slate-100 text-slate-700'}`}>Low &amp; Out of Stock ({lowStockCount})</button>
+            </div>
+          </div>
           <table className="min-w-full text-left text-sm text-slate-700">
             <thead className="bg-slate-50 text-slate-600">
-              <tr><th className="px-4 py-3">Ingredient</th><th className="px-4 py-3">Quantity</th><th className="px-4 py-3">Availability</th></tr>
+              <tr><th className="px-4 py-3">Ingredient</th><th className="px-4 py-3">Quantity</th><th className="px-4 py-3">Min. Threshold</th><th className="px-4 py-3">Availability</th></tr>
             </thead>
             <tbody>
-              {items.map((item) => {
-                const stock = Number(item.current_stock);
-                const threshold = Number(item.low_stock_threshold);
-                const status = stock <= 0 ? 'Out of stock' : stock <= threshold ? 'Low stock' : 'In stock';
-                const statusStyle = stock <= 0 ? 'bg-rose-100 text-rose-800' : stock <= threshold ? 'bg-amber-100 text-amber-800' : 'bg-emerald-100 text-emerald-800';
+              {visibleItems.map((item) => {
+                const status = getStockStatus(item);
                 return (
                   <tr key={item.id} className="border-t border-slate-200">
                     <td className="px-4 py-3 font-medium">{item.item_name}</td>
                     <td className="px-4 py-3">{item.current_stock} {item.unit}</td>
-                    <td className="px-4 py-3"><span className={`rounded-full px-2 py-1 text-xs font-medium ${statusStyle}`}>{status}</span></td>
+                    <td className="px-4 py-3">{item.low_stock_threshold} {item.unit}</td>
+                    <td className="px-4 py-3"><span className={`rounded-full px-2 py-1 text-xs font-medium ${status.style}`}>{status.label}</span></td>
                   </tr>
                 );
               })}
-              {!items.length && <tr><td colSpan={3} className="px-4 py-8 text-center text-slate-500">No inventory items yet.</td></tr>}
+              {!visibleItems.length && <tr><td colSpan={4} className="px-4 py-8 text-center text-slate-500">{showLowStockOnly ? 'No low or out-of-stock ingredients.' : 'No inventory items yet.'}</td></tr>}
             </tbody>
           </table>
         </div>
@@ -184,30 +242,53 @@ export function InventoryManager({
       </section>}
 
       {(isAdmin || demo) && <div className="overflow-x-auto rounded-2xl border border-slate-200 bg-white shadow-soft">
+        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 p-4">
+          <p className="font-semibold text-slate-900">Inventory status</p>
+          <div className="flex gap-2">
+            <button type="button" onClick={() => setShowLowStockOnly(false)} className={`rounded-lg px-3 py-2 text-sm font-medium ${!showLowStockOnly ? 'bg-slate-900 text-white' : 'bg-slate-100 text-slate-700'}`}>All Items</button>
+            <button type="button" onClick={() => setShowLowStockOnly(true)} className={`rounded-lg px-3 py-2 text-sm font-medium ${showLowStockOnly ? 'bg-amber-100 text-amber-900' : 'bg-slate-100 text-slate-700'}`}>Low &amp; Out of Stock ({lowStockCount})</button>
+          </div>
+        </div>
         <table className="min-w-full text-left text-sm text-slate-700">
           <thead className="bg-slate-50 text-slate-600">
             <tr>
               <th className="px-4 py-3">Supply</th>
               <th className="px-4 py-3">Stock</th>
-              <th className="px-4 py-3">Threshold</th>
+              <th className="px-4 py-3">Min. Threshold</th>
+              <th className="px-4 py-3">Status</th>
               <th className="px-4 py-3">Unit cost</th>
               <th className="px-4 py-3">Actions</th>
             </tr>
           </thead>
           <tbody>
-            {items.map((item) => {
-              const isLow = Number(item.current_stock) <= Number(item.low_stock_threshold);
+            {visibleItems.map((item) => {
+              const status = getStockStatus(item);
               const busy = busyId === item.id;
               return (
                 <tr key={item.id} className="border-t border-slate-200">
                   <td className="px-4 py-3 font-medium">{item.item_name}</td>
                   <td className="px-4 py-3">{item.current_stock} {item.unit}</td>
-                  <td className="px-4 py-3">{item.low_stock_threshold} {item.unit}</td>
+                  <td className="min-w-44 px-4 py-3">
+                    <div className="flex items-center gap-2">
+                      <input
+                        aria-label={`Minimum stock threshold for ${item.item_name}`}
+                        type="number"
+                        min="0"
+                        step="0.001"
+                        value={thresholdInputs[item.id] ?? String(item.low_stock_threshold)}
+                        onChange={(event) => setThresholdInputs((current) => ({ ...current, [item.id]: event.target.value }))}
+                        disabled={demo || busy}
+                        className="w-24 rounded border border-slate-300 px-2 py-1"
+                      />
+                      <span>{item.unit}</span>
+                      <button type="button" disabled={demo || busy} onClick={() => void saveThreshold(item)} className="rounded border border-slate-300 px-2 py-1 text-xs disabled:opacity-50">
+                        {busy ? 'Saving…' : 'Save'}
+                      </button>
+                    </div>
+                  </td>
+                  <td className="px-4 py-3"><span className={`rounded-full px-2 py-1 text-xs font-medium ${status.style}`}>{status.label}</span></td>
                   <td className="px-4 py-3">฿{Number(item.unit_cost).toFixed(2)}</td>
                   <td className="px-4 py-3">
-                    <span className={`mb-2 inline-block rounded-full px-2 py-1 text-xs font-medium ${isLow ? 'bg-amber-100 text-amber-800' : 'bg-emerald-100 text-emerald-800'}`}>
-                      {isLow ? 'Low' : 'In stock'}
-                    </span>
                     <div className="flex flex-wrap items-center gap-2">
                       <button type="button" disabled={demo || busy || Number(item.current_stock) <= 0} onClick={() => saveStock(item, Math.max(0, Number(item.current_stock) - 1))} className="rounded border border-slate-300 px-2 py-1 disabled:opacity-50">−1</button>
                       <button type="button" disabled={demo || busy} onClick={() => saveStock(item, Number(item.current_stock) + 1, true)} className="rounded border border-slate-300 px-2 py-1 disabled:opacity-50">+1</button>
@@ -237,7 +318,7 @@ export function InventoryManager({
                 </tr>
               );
             })}
-            {!items.length && <tr><td colSpan={5} className="px-4 py-8 text-center text-slate-500">No supplies added yet.</td></tr>}
+            {!visibleItems.length && <tr><td colSpan={6} className="px-4 py-8 text-center text-slate-500">{showLowStockOnly ? 'No low or out-of-stock ingredients.' : 'No supplies added yet.'}</td></tr>}
           </tbody>
         </table>
       </div>}

@@ -3,7 +3,14 @@ import { DashboardShell } from '@/components/dashboard-shell';
 import { SummaryCards } from '@/components/summary-cards';
 import { APP_TIMEZONE } from '@/lib/currency';
 import { getDashboardContext } from '@/lib/supabase/dashboard-context';
-import { redirect } from 'next/navigation';
+
+type LowStockSupply = {
+  id: string;
+  item_name: string;
+  unit: string;
+  current_stock: number;
+  low_stock_threshold: number;
+};
 
 function getTodayRange() {
   const today = new Date().toLocaleDateString('en-CA', {
@@ -60,10 +67,9 @@ export default async function DashboardPage() {
     );
   }
 
-  if (profile?.role === 'barista') redirect('/dashboard/tables');
   const franchiseId = profile?.franchise_owner_id ?? user.id;
   const { start, end } = getTodayRange();
-  const [ordersResult, suppliesResult, tablesResult] = await Promise.all([
+  const [ordersResult, lowStockResult, tablesResult] = await Promise.all([
     supabase
       .from('orders')
       .select('id, total_amount, platform_fee, cogs_total')
@@ -71,17 +77,13 @@ export default async function DashboardPage() {
       .eq('status', 'paid')
       .gte('created_at', start)
       .lt('created_at', end),
-    supabase
-      .from('supplies')
-      .select('item_name, unit, current_stock, low_stock_threshold')
-      .eq('owner_id', franchiseId)
-      .order('item_name'),
+    supabase.rpc('get_low_stock_supplies'),
     supabase
       .from('cafe_tables')
       .select('status')
       .eq('owner_id', franchiseId),
   ]);
-  const queryError = ordersResult.error ?? suppliesResult.error ?? tablesResult.error;
+  const queryError = ordersResult.error ?? lowStockResult.error ?? tablesResult.error;
 
   if (queryError) {
     return (
@@ -94,14 +96,11 @@ export default async function DashboardPage() {
   }
 
   const orders = ordersResult.data ?? [];
-  const supplies = suppliesResult.data ?? [];
+  const lowStockSupplies: LowStockSupply[] = lowStockResult.data ?? [];
   const tables = tablesResult.data ?? [];
   const grossRevenue = orders.reduce((total, order) => total + Number(order.total_amount ?? 0), 0);
   const platformFees = orders.reduce((total, order) => total + Number(order.platform_fee ?? 0), 0);
   const ingredientCosts = orders.reduce((total, order) => total + Number(order.cogs_total ?? 0), 0);
-  const lowStockSupplies = supplies.filter(
-    (supply) => Number(supply.current_stock) <= Number(supply.low_stock_threshold)
-  );
   const occupiedTables = tables.filter((table) => table.status === 'occupied').length;
 
   return (
@@ -140,15 +139,26 @@ export default async function DashboardPage() {
             <h2 className="text-lg font-semibold text-slate-900">Low Stock Alerts</h2>
             <ul className="mt-4 space-y-3 text-sm text-slate-600">
               {lowStockSupplies.length ? lowStockSupplies.map((supply) => (
-                <li key={supply.item_name} className="rounded-xl bg-amber-50 px-3 py-2 text-amber-800">
-                  {supply.item_name} · {supply.current_stock} {supply.unit} · below threshold ({supply.low_stock_threshold} {supply.unit})
+                <li key={supply.item_name} className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-slate-100 px-3 py-2">
+                  <span className="min-w-0">
+                    <span className="font-medium text-slate-900">{supply.item_name}</span>
+                    <span className="block text-slate-600">
+                      {supply.current_stock} {supply.unit} current · {supply.low_stock_threshold} {supply.unit} minimum
+                    </span>
+                  </span>
+                  <span className={`rounded-full px-2 py-1 text-xs font-semibold ${Number(supply.current_stock) <= 0 ? 'bg-rose-100 text-rose-800' : 'bg-amber-100 text-amber-800'}`}>
+                    {Number(supply.current_stock) <= 0 ? 'Out of Stock' : 'Low Stock'}
+                  </span>
                 </li>
               )) : (
                 <li className="rounded-xl bg-emerald-50 px-3 py-2 text-emerald-800">
-                  {supplies.length ? 'All supplies are above their low-stock thresholds.' : 'No supplies have been added yet.'}
+                  All ingredients are stocked above threshold
                 </li>
               )}
             </ul>
+            <Link href="/dashboard/inventory" className="mt-4 inline-flex text-sm font-semibold text-brand-700 hover:text-brand-800">
+              Restock →
+            </Link>
           </section>
 
           <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-soft">
